@@ -1,0 +1,7 @@
+version: v1
+name: buf.build/harbor-pkg/duh
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - DEFAULT
