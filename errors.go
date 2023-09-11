@@ -2,7 +2,7 @@ package duh
 
 import (
 	"fmt"
-	"github.com/harbor-pkg/duh/proto/v1"
+	"github.com/harbor-pkgs/duh/proto/v1"
 )
 
 // NewError returns a new proto error of type *v1.Error

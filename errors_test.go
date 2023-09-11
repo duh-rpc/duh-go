@@ -2,7 +2,7 @@ package duh_test
 
 import (
 	"encoding/json"
-	"github.com/harbor-pkg/duh"
+	"github.com/harbor-pkgs/duh"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
