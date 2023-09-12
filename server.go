@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,53 +19,46 @@ var bufferPool = sync.Pool{
 	New: func() interface{} { return new(bytes.Buffer) },
 }
 
-type ServerError interface {
-	ProtoMessage() proto.Message
-	StatusCode() int
-}
+// Unmarshal reads the given http.Request body []byte into the given proto.Message.
+// The provided message must be mutable (e.g., a non-nil pointer to a message).
+// It also handles content negotiation via the 'Content-Type' header provided in the http.Request headers
+func Unmarshal(r *http.Request, m proto.Message) error {
+	b := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(b)
+	b.Reset()
 
-type ErrBadRequest struct {
-	Details map[string]string
-	Message string
-	Code    int
-}
+	_, err := io.Copy(b, r.Body)
+	if err != nil {
+		// TODO: This is probably not an internal error, but a read limit size error, so we should return an error
+		//  appropriate for that.
+		// Should we use NewError() or ErrBadRequest{}. I think we should NewError() and have it return a ServerError which is easy to understand?
+		return NewError(CodeBadRequest, err),
+		}
+	}
 
-func (r ErrBadRequest) ProtoMessage() proto.Message {
-	return &v1.Error{
-		Code:    CodeBadRequest,
-		Details: r.Details,
-		Message: r.Message,
+	switch r.Header.Get("Content-Type") {
+	case "", "application/json":
+
+		json.Unmarshal()
+	case "application/protobuf":
+		fallthrough
+	default:
+
 	}
 }
 
-func (r ErrBadRequest) StatusCode() int {
-	return CodeBadRequest
-}
-
-const (
-	CodeOK               = 200
-	CodeBadRequest       = 400
-	CodeUnauthorized     = 401
-	CodeRequestFailed    = 402
-	CodeMethodNotAllowed = 403
-	CodeConflict         = 409
-	CodeClientError      = 428
-	CodeTooManyRequests  = 429
-	CodeInternalError    = 500
-)
-
 // ReplyMsg replies to the request with the specified message and status code
-func ReplyMsg(w http.ResponseWriter, r *http.Request, c int, d map[string]string, m string) {
-	Reply(w, r, c, &v1.Error{
-		Code:    int32(c),
-		Message: m,
-		Details: d,
+func ReplyMsg(w http.ResponseWriter, r *http.Request, code int, details map[string]string, msg string) {
+	Reply(w, r, code, &v1.Error{
+		Code:    int32(code),
+		Message: msg,
+		Details: details,
 	})
 }
 
 // ReplyMsgf is identical to ReplyMsg, but it accepts a format specifier and arguments for that satisfies the format
-func ReplyMsgf(w http.ResponseWriter, r *http.Request, c int, d map[string]string, f string, a ...any) {
-	ReplyMsg(w, r, c, d, fmt.Sprintf(f, a...))
+func ReplyMsgf(w http.ResponseWriter, r *http.Request, code int, details map[string]string, format string, args ...any) {
+	ReplyMsg(w, r, code, details, fmt.Sprintf(format, args...))
 }
 
 // ReplyError replies to the request with the error provided. If 'err' satisfies the ServerError interface,
@@ -84,17 +78,17 @@ func ReplyError(w http.ResponseWriter, r *http.Request, err error) {
 // Reply replies to the request with the specified protobuf message and status code.
 // Reply() provides content negotiation for protobuf if the request has the 'Accept' header set.
 // If no 'Accept' header was provided, Reply() will marshall the proto.Message into JSON.
-func Reply(w http.ResponseWriter, r *http.Request, c int, p proto.Message) {
+func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message) {
 	switch strings.ToLower(r.Header.Get("Accept")) {
 	case "", "application/json":
-		b, err := json.Marshal(p)
+		b, err := json.Marshal(resp)
 		if err != nil {
 			ReplyMsg(w, r, CodeInternalError, nil, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(c)
+		w.WriteHeader(code)
 		_, _ = w.Write(b)
 	case "application/protobuf":
 		// TODO: Implement protobuf

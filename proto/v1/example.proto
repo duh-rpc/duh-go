@@ -20,8 +20,9 @@ package duh.v1;
 
 option go_package = "github.com/habor-pkg/duh/proto/v1";
 
-message Error {
-    int32 code = 1;
-    string message = 2;
-    map<string, string> details = 3;
+message SayHelloRequest {
+  string name = 1;
+}
+message SayHelloResponse {
+  string message = 1;
 }
