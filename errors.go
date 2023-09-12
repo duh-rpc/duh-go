@@ -1,9 +1,6 @@
 package duh
 
 import (
-	"errors"
-	"fmt"
-
 	v1 "github.com/harbor-pkgs/duh/proto/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,106 +17,106 @@ const (
 	CodeInternalError    = 500
 )
 
-type ServerError interface {
-	ProtoMessage() proto.Message
-	StatusCode() int
-}
-
-type ErrBadRequest struct {
-	Details map[string]string
-	Wrapped error
-}
-
-func (e *ErrBadRequest) ProtoMessage() proto.Message {
-	return &v1.Error{
-		Message: e.Wrapped.Error(),
-		Code:    CodeBadRequest,
-		Details: e.Details,
-	}
-}
-
-func (e *ErrBadRequest) StatusCode() int {
-	return CodeBadRequest
-}
-
-func (e *ErrBadRequest) Error() string {
-	return "Bad Request:" + e.Wrapped.Error()
-}
-
-type ErrUnauthorized struct {
-	Details map[string]string
-	Wrapped error
-}
-
-func (e *ErrUnauthorized) ProtoMessage() proto.Message {
-	return &v1.Error{
-		Message: e.Wrapped.Error(),
-		Code:    CodeUnauthorized,
-		Details: e.Details,
-	}
-}
-
-func (e *ErrUnauthorized) StatusCode() int {
-	return CodeUnauthorized
-}
-
-func (e *ErrUnauthorized) Error() string {
-	return "Unauthorized: " + e.Wrapped.Error()
-}
-
-type ErrInternal struct {
-	Details map[string]string
-	Err     error
-}
-
-func (e *ErrInternal) ProtoMessage() proto.Message {
-	return &v1.Error{
-		Message: e.Err.Error(),
-		Code:    CodeInternalError,
-		Details: e.Details,
-	}
-}
-
-func (e *ErrInternal) Unwrap() error {
-	return e.Err
-}
-
-func (e *ErrInternal) Is(target error) bool {
-	_, ok := target.(*ErrInternal)
-	return ok
-}
-
-func (e *ErrInternal) StatusCode() int {
-	return CodeInternalError
-}
-
-func (e *ErrInternal) Error() string {
-	return "Internal Error:" + e.Err.Error()
-}
-
-// NewError returns a new proto error of type *v1.Error
-func NewError(code int, err error, details map[string]string) error {
+func CodeText(code int) string {
 	switch code {
+	case CodeOK:
+		return "OK"
 	case CodeBadRequest:
-		return &ErrBadRequest{
-			Details: details,
-			Wrapped: err,
-		}
-		// TODO: Add all Error Codes here
+		return "Bad Request"
+	case CodeUnauthorized:
+		return "Unauthorized"
+	case CodeRequestFailed:
+		return "Request Failed"
+	case CodeMethodNotAllowed:
+		return "Method Not Allowed"
+	case CodeConflict:
+		return "Conflict"
+	case CodeClientError:
+		return "Client Respond"
+	case CodeTooManyRequests:
+		return "Too Many Requests"
+	case CodeInternalError:
+		return "Internal Respond"
 	default:
-		return &ErrInternal{
-			Details: details,
-			Err:     err,
-		}
+		return "Unknown Code"
 	}
 }
 
-// Error returns an error of the given code and message
-func Error(code int, details map[string]string, msg string) error {
-	return NewError(code, errors.New(msg), details)
+type ErrorInterface interface {
+	// ProtoMessage Creates v1.Reply protobuf from this ErrorInterface
+	ProtoMessage() proto.Message
+	// StatusCode is the HTTP status retrieved from v1.Respond.Details
+	StatusCode() int
+	// Error is the error message this error wrapped (Used on the server side)
+	Error() string
+	// Details is the details of the error retrieved from v1.Respond.Details
+	Details() map[string]string
+	// Message is the message retrieved from v1.Respond.Respond
+	Message() string
 }
 
-// Errorf returns a Status with a formatted error message (Supports %w)
-func Errorf(code int, details map[string]string, format string, a ...interface{}) error {
-	return NewError(code, fmt.Errorf(format, a...), details)
+var _ ErrorInterface = (*Error)(nil)
+
+type Error struct {
+	details map[string]string
+	msg     string
+	err     error
+	code    int
+}
+
+func (e *Error) ProtoMessage() proto.Message {
+	if e.err != nil && e.msg == "" {
+		e.msg = e.err.Error()
+	}
+	return &v1.Reply{
+		Code:    int32(e.code),
+		Details: e.details,
+		Message: e.msg,
+	}
+}
+
+func (e *Error) StatusCode() int {
+	return e.code
+}
+
+func (e *Error) Message() string {
+	return e.msg
+}
+
+func (e *Error) Error() string {
+	return CodeText(e.code) + ":" + e.err.Error()
+}
+
+func (e *Error) Details() map[string]string {
+	return e.details
+}
+
+// TODO: Maybe rename this to `WrapError()` and drop the `msg` ?
+
+// NewRequestError returns a new Error. You should use this when wrapping an error of type `error`.
+func NewRequestError(code int, msg string, err error, details map[string]string) error {
+	return &Error{
+		details: details,
+		code:    code,
+		msg:     msg,
+		err:     err,
+	}
+}
+
+//// ErrorInterface returns an error of the given code and message.
+//// You should use this when reporting an error that did not originate from an error of type `error`
+//func ErrorInterface(code int, details map[string]string, msg string) error {
+//	return NewRequestError(code, "", errors.New(msg), details)
+//}
+//
+//// Errorf returns a Status with a formatted error message (Supports %w)
+//func Errorf(code int, details map[string]string, format string, a ...interface{}) error {
+//	return NewRequestError(code, "", fmt.Errorf(format, a...), details)
+//}
+
+// IsRetryable returns true if any error in the chain is of type ErrorInterface, and is one
+// of the following codes [429,500,502,503,504]
+func IsRetryable(err error) bool {
+	// TODO
+	return false
 }

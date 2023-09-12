@@ -29,61 +29,59 @@ func Unmarshal(r *http.Request, m proto.Message) error {
 
 	_, err := io.Copy(b, r.Body)
 	if err != nil {
-		// TODO: This is probably not an internal error, but a read limit size error, so we should return an error
-		//  appropriate for that.
-		// Should we use NewError() or ErrBadRequest{}. I think we should NewError() and have it return a ServerError which is easy to understand?
-		return NewError(CodeBadRequest, err),
-		}
+		return NewRequestError(CodeBadRequest, "", err, nil)
 	}
 
-	switch r.Header.Get("Content-Type") {
+	// Ignore multiple mime types separated by comma ',' or mime type parameters separated by semicolon ';'
+	mt := TrimSuffix(r.Header.Get("Content-Type"), ";,")
+
+	switch strings.TrimSpace(strings.ToLower(mt)) {
 	case "", "application/json":
-
-		json.Unmarshal()
+		if err := json.Unmarshal(b.Bytes(), m); err != nil {
+			return NewRequestError(CodeBadRequest, "", err, nil)
+		}
 	case "application/protobuf":
-		fallthrough
-	default:
-
+		// TODO:
 	}
+	return NewRequestError(CodeBadRequest,
+		fmt.Sprintf("Content-Type header '%s' is invalid format or unrecognized content type",
+			r.Header.Get("Content-Type")), nil, nil)
 }
 
-// ReplyMsg replies to the request with the specified message and status code
-func ReplyMsg(w http.ResponseWriter, r *http.Request, code int, details map[string]string, msg string) {
-	Reply(w, r, code, &v1.Error{
+// ReplyWithCode replies to the request with the specified message and status code
+func ReplyWithCode(w http.ResponseWriter, r *http.Request, code int, details map[string]string, msg string) {
+	Respond(w, r, code, &v1.Reply{
 		Code:    int32(code),
 		Message: msg,
 		Details: details,
 	})
 }
 
-// ReplyMsgf is identical to ReplyMsg, but it accepts a format specifier and arguments for that satisfies the format
-func ReplyMsgf(w http.ResponseWriter, r *http.Request, code int, details map[string]string, format string, args ...any) {
-	ReplyMsg(w, r, code, details, fmt.Sprintf(format, args...))
-}
-
-// ReplyError replies to the request with the error provided. If 'err' satisfies the ServerError interface,
-// then it will return the code and message provided by the ServerError. If 'err' does not satisfy the ServerError
-// it will then return a status of CodeInternalError with the err.Error() as the message.
+// ReplyError replies to the request with the error provided. If 'err' satisfies the ErrorInterface interface,
+// then it will return the code and message provided by the ErrorInterface. If 'err' does not satisfy the ErrorInterface
+// it will then return a status of CodeInternalError with the err.Respond() as the message.
 func ReplyError(w http.ResponseWriter, r *http.Request, err error) {
-	var se ServerError
-	if errors.As(err, &se) {
-		Reply(w, r, se.StatusCode(), se.ProtoMessage())
+	var re ErrorInterface
+	if errors.As(err, &re) {
+		Respond(w, r, re.StatusCode(), re.ProtoMessage())
 		return
 	}
-	// If err has no ServerError in the error chain, then reply with Internal Error and the message
+	// If err has no ErrorInterface in the error chain, then reply with CodeInternalError and the message
 	// provided.
-	ReplyMsg(w, r, CodeInternalError, nil, err.Error())
+	ReplyWithCode(w, r, CodeInternalError, nil, err.Error())
 }
 
-// Reply replies to the request with the specified protobuf message and status code.
-// Reply() provides content negotiation for protobuf if the request has the 'Accept' header set.
-// If no 'Accept' header was provided, Reply() will marshall the proto.Message into JSON.
-func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message) {
-	switch strings.ToLower(r.Header.Get("Accept")) {
+// Respond responds to a request with the specified protobuf message and status code.
+// Respond() provides content negotiation for protobuf if the request has the 'Accept' header set.
+// If no 'Accept' header was provided, Respond() will marshall the proto.Message into JSON.
+func Respond(w http.ResponseWriter, r *http.Request, code int, resp proto.Message) {
+	// Ignore multiple mime types separated by comma ',' or mime type parameters separated by semicolon ';'
+	mt := TrimSuffix(r.Header.Get("Accept"), ";,")
+	switch strings.TrimSpace(strings.ToLower(mt)) {
 	case "", "application/json":
 		b, err := json.Marshal(resp)
 		if err != nil {
-			ReplyMsg(w, r, CodeInternalError, nil, err.Error())
+			ReplyWithCode(w, r, CodeInternalError, nil, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -95,9 +93,18 @@ func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message)
 		fallthrough
 	default:
 		r.Header.Set("Accept", "application/json")
-		ReplyMsgf(w, r, CodeBadRequest, nil, "'Accept: %s' contains no acceptable mime formats. "+
-			"Server supports the following (application/json)", r.Header.Get("Accept"))
+		ReplyWithCode(w, r, CodeBadRequest, nil, fmt.Sprintf("Accept header '%s' is invalid format "+
+			"or unrecognized content type, only [%s] are supported by this method",
+			mt, strings.Join(SupportedMimeTypes, ",")))
 	}
+}
+
+// TrimSuffix trims everything after the first separator is found
+func TrimSuffix(s, sep string) string {
+	if i := strings.IndexAny(s, sep); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 func protoMarshal(in proto.Message) ([]byte, error) {
@@ -111,3 +118,5 @@ func protoMarshal(in proto.Message) ([]byte, error) {
 	})
 	return out.Buf, err
 }
+
+var SupportedMimeTypes = []string{"application/json", "application/protobuf"}

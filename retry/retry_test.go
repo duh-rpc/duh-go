@@ -21,7 +21,7 @@ func NewClient() *Client {
 	return &Client{}
 }
 
-func ExampleRetry() {
+func ExampleOn() {
 	c := NewClient()
 	var resp DoThingResponse
 

@@ -17,7 +17,7 @@
 // versions:
 // 	protoc-gen-go v1.30.0
 // 	protoc        (unknown)
-// source: proto/v1/error.proto
+// source: proto/v1/reply.proto
 
 package v1
 
@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Error struct {
+type Reply struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -45,8 +45,8 @@ type Error struct {
 	Details map[string]string `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
-func (x *Error) Reset() {
-	*x = Error{}
+func (x *Reply) Reset() {
+	*x = Reply{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_proto_v1_error_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -54,13 +54,13 @@ func (x *Error) Reset() {
 	}
 }
 
-func (x *Error) String() string {
+func (x *Reply) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Error) ProtoMessage() {}
+func (*Reply) ProtoMessage() {}
 
-func (x *Error) ProtoReflect() protoreflect.Message {
+func (x *Reply) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_v1_error_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -72,26 +72,26 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Error.ProtoReflect.Descriptor instead.
-func (*Error) Descriptor() ([]byte, []int) {
+// Deprecated: Use Reply.ProtoReflect.Descriptor instead.
+func (*Reply) Descriptor() ([]byte, []int) {
 	return file_proto_v1_error_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Error) GetCode() int32 {
+func (x *Reply) GetCode() int32 {
 	if x != nil {
 		return x.Code
 	}
 	return 0
 }
 
-func (x *Error) GetMessage() string {
+func (x *Reply) GetMessage() string {
 	if x != nil {
 		return x.Message
 	}
 	return ""
 }
 
-func (x *Error) GetDetails() map[string]string {
+func (x *Reply) GetDetails() map[string]string {
 	if x != nil {
 		return x.Details
 	}
@@ -133,11 +133,11 @@ func file_proto_v1_error_proto_rawDescGZIP() []byte {
 
 var file_proto_v1_error_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_proto_v1_error_proto_goTypes = []interface{}{
-	(*Error)(nil), // 0: duh.v1.Error
-	nil,           // 1: duh.v1.Error.DetailsEntry
+	(*Reply)(nil), // 0: duh.v1.Reply
+	nil,           // 1: duh.v1.Reply.DetailsEntry
 }
 var file_proto_v1_error_proto_depIdxs = []int32{
-	1, // 0: duh.v1.Error.details:type_name -> duh.v1.Error.DetailsEntry
+	1, // 0: duh.v1.Reply.details:type_name -> duh.v1.Reply.DetailsEntry
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -152,7 +152,7 @@ func file_proto_v1_error_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_proto_v1_error_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Error); i {
+			switch v := v.(*Reply); i {
 			case 0:
 				return &v.state
 			case 1:
