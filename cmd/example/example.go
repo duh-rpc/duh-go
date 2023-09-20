@@ -34,7 +34,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// TODO: Verify the authenticated user can access this endpoint
 		// TODO: Nothing stopping you from Reading the Headers to determine what todo with the payload (GroupCache?)
 		var req v1.SayHelloRequest
-		if err := duh.Unmarshal(r, &req); err != nil {
+		if err := duh.ReadRequest(r, &req); err != nil {
 			duh.ReplyError(w, r, err)
 			return
 		}

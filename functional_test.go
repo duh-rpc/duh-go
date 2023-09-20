@@ -2,10 +2,12 @@ package duh_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/harbor-pkgs/duh"
 	v1 "github.com/harbor-pkgs/duh/proto/v1"
@@ -40,7 +42,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// No need for fancy routers, a switch case is performant and simple.
 	case "/v1/say.hello":
 		var req v1.SayHelloRequest
-		if err := duh.Unmarshal(r, &req); err != nil {
+		if err := duh.ReadRequest(r, &req); err != nil {
 			duh.ReplyError(w, r, err)
 			return
 		}
@@ -59,5 +61,29 @@ func TestServer(t *testing.T) {
 	server := httptest.NewServer(&Handler{})
 	defer server.Close()
 
-	// TODO: Implement a Client and call the server
+	c := NewHelloClient()
+	var resp v1.SayHelloResponse
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	if err := c.SayHello(ctx, &v1.SayHelloRequest{}, &resp); err != nil {
+		var de duh.Error
+		if errors.As(err, &de) {
+			de.Details()
+			de.Error()
+			//msg := `HTTP failed on 'GET https://example.com' (X-Account-Id: '', X-Other-Thing: '') with '404' message 'Not Found'`
+			msg := `GET https://example.com failed with 'Not Found' message 'Fido is not in the Pet Shop'`
+			msg = `GET https://example.com failed with 'Request Failed' message 'while reading response body: EOF'`
+			msg = `GET https://example.com failed with 'Request Failed' message 'while parsing response body: expected {'`
+			fmt.Printf(msg)
+		}
+
+		// TODO: Start Testing the client!
+
+		// Is this a retryable error?
+		// Is this an infra error?
+		// Is this a failure?
+		// Can I tell the diff between an infra error and an error from the service?
+	}
 }

@@ -19,17 +19,17 @@ var bufferPool = sync.Pool{
 	New: func() interface{} { return new(bytes.Buffer) },
 }
 
-// Unmarshal reads the given http.Request body []byte into the given proto.Message.
+// ReadRequest reads the given http.Request body []byte into the given proto.Message.
 // The provided message must be mutable (e.g., a non-nil pointer to a message).
 // It also handles content negotiation via the 'Content-Type' header provided in the http.Request headers
-func Unmarshal(r *http.Request, m proto.Message) error {
+func ReadRequest(r *http.Request, m proto.Message) error {
 	b := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(b)
 	b.Reset()
 
 	_, err := io.Copy(b, r.Body)
 	if err != nil {
-		return NewRequestError(CodeBadRequest, "", err, nil)
+		return NewErrService(CodeBadRequest, "", err, nil)
 	}
 
 	// Ignore multiple mime types separated by comma ',' or mime type parameters separated by semicolon ';'
@@ -38,12 +38,12 @@ func Unmarshal(r *http.Request, m proto.Message) error {
 	switch strings.TrimSpace(strings.ToLower(mt)) {
 	case "", "application/json":
 		if err := json.Unmarshal(b.Bytes(), m); err != nil {
-			return NewRequestError(CodeBadRequest, "", err, nil)
+			return NewErrService(CodeBadRequest, "", err, nil)
 		}
 	case "application/protobuf":
 		// TODO:
 	}
-	return NewRequestError(CodeBadRequest,
+	return NewErrService(CodeBadRequest,
 		fmt.Sprintf("Content-Type header '%s' is invalid format or unrecognized content type",
 			r.Header.Get("Content-Type")), nil, nil)
 }
@@ -57,16 +57,16 @@ func ReplyWithCode(w http.ResponseWriter, r *http.Request, code int, details map
 	})
 }
 
-// ReplyError replies to the request with the error provided. If 'err' satisfies the ErrorInterface interface,
-// then it will return the code and message provided by the ErrorInterface. If 'err' does not satisfy the ErrorInterface
+// ReplyError replies to the request with the error provided. If 'err' satisfies the Error interface,
+// then it will return the code and message provided by the Error. If 'err' does not satisfy the Error
 // it will then return a status of CodeInternalError with the err.Respond() as the message.
 func ReplyError(w http.ResponseWriter, r *http.Request, err error) {
-	var re ErrorInterface
+	var re Error
 	if errors.As(err, &re) {
 		Respond(w, r, re.StatusCode(), re.ProtoMessage())
 		return
 	}
-	// If err has no ErrorInterface in the error chain, then reply with CodeInternalError and the message
+	// If err has no Error in the error chain, then reply with CodeInternalError and the message
 	// provided.
 	ReplyWithCode(w, r, CodeInternalError, nil, err.Error())
 }
