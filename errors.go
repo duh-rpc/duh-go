@@ -39,7 +39,7 @@ func CodeText(code int) string {
 	case CodeConflict:
 		return "Conflict"
 	case CodeClientError:
-		return "Client Reply"
+		return "Client Error"
 	case CodeTooManyRequests:
 		return "Too Many Requests"
 	case CodeInternalError:
@@ -66,8 +66,8 @@ func IsReplyCode(code int) bool {
 type Error interface {
 	// ProtoMessage Creates v1.Reply protobuf from this Error
 	ProtoMessage() proto.Message
-	// StatusCode is the HTTP status retrieved from v1.Reply.Details
-	StatusCode() int
+	// Code is the code retrieved from v1.Reply.Code or the HTTP Status Code
+	Code() int
 	// Error is the error message this error wrapped (Used on the server side)
 	Error() string
 	// Details is the details of the error retrieved from v1.Reply.Details
@@ -108,7 +108,7 @@ func (e *ServiceError) ProtoMessage() proto.Message {
 	}
 }
 
-func (e *ServiceError) StatusCode() int {
+func (e *ServiceError) Code() int {
 	return e.code
 }
 
@@ -142,7 +142,7 @@ func (e *ClientError) ProtoMessage() proto.Message {
 	}
 }
 
-func (e *ClientError) StatusCode() int {
+func (e *ClientError) Code() int {
 	return e.code
 }
 
@@ -157,6 +157,10 @@ func (e *ClientError) Error() string {
 	}
 	return CodeText(e.code) + ": " + e.msg
 }
+
+//func (e *ClientError) Equal(err *ClientError) {
+//	if e.msg == err.msg && e.code == e.code
+//}
 
 func (e *ClientError) Details() map[string]string {
 	return e.details

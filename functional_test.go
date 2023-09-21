@@ -2,6 +2,12 @@ package duh_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"github.com/harbor-pkgs/duh"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -10,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDemo(t *testing.T) {
+func TestDemoHappyPath(t *testing.T) {
 	// Create a new instance of our service
 	service := demo.NewService()
 
@@ -50,7 +56,93 @@ func TestDemo(t *testing.T) {
 	}
 }
 
+type badTransport struct {
+}
+
+func (t *badTransport) RoundTrip(rq *http.Request) (*http.Response, error) {
+	return nil, nil
+}
+
+var badTransportClient = http.Client{Transport: &badTransport{}}
+
+func TestClientErrors(t *testing.T) {
+	service := demo.NewService()
+	server := httptest.NewServer(&demo.Handler{Service: service})
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	for _, tt := range []struct {
+		details map[string]string
+		conf    demo.ClientConfig
+		req     proto.Message
+		error   string
+		name    string
+		msg     string
+		code    int
+	}{
+		{
+			name:  "fail to marshal protobuf request",
+			error: "Client Error: while marshaling request payload: string field contains invalid UTF-8",
+			conf:  demo.ClientConfig{Endpoint: server.URL},
+			req: &demo.SayHelloRequest{
+				Name: string([]byte{0x80, 0x81}),
+			},
+			code: duh.CodeClientError,
+		},
+		{
+			name:    "fail to create request",
+			error:   "Client Error: Post \"/v1/test.errors\": unsupported protocol scheme \"\"",
+			details: map[string]string{"http.method": "POST", "http.url": "/v1/test.errors"},
+			conf:    demo.ClientConfig{Endpoint: ""},
+			req:     &demo.SayHelloRequest{},
+			code:    duh.CodeClientError,
+		},
+		{
+			name: "fail to create request",
+			error: fmt.Sprintf("Client Error: Post \"%s/v1/test.errors\": http: RoundTripper "+
+				"implementation (*duh_test.badTransport) "+"returned a nil *Response with a nil error", server.URL),
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsHttpMethod: "POST",
+			},
+			conf: demo.ClientConfig{Endpoint: server.URL, Client: &badTransportClient},
+			req:  &demo.SayHelloRequest{},
+			code: duh.CodeClientError,
+		},
+		{
+			name:  "fail to read body of response",
+			error: "Transport Error: while reading response body: unexpected EOF",
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsHttpMethod: "POST",
+				duh.DetailsHttpStatus: "200 OK",
+			},
+			conf: demo.ClientConfig{Endpoint: server.URL},
+			req:  &demo.TestErrorsRequest{Case: "EOF"},
+			code: duh.CodeTransportError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			c := demo.NewClient(tt.conf)
+			err := c.TestErrors(ctx, tt.req, nil)
+			var e duh.Error
+			require.True(t, errors.As(err, &e))
+			assert.Equal(t, tt.error, e.Error())
+			assert.Equal(t, tt.msg, e.Message())
+			assert.Equal(t, tt.code, e.Code())
+			for k, v := range tt.details {
+				require.Contains(t, e.Details(), k)
+				assert.Contains(t, e.Details()[k], v)
+			}
+		})
+	}
+}
+
+// TODO: Test no such method case
+
 // TODO: Setup Error cases for tests
+// TODO: Update the benchmark tests
 //if err := c.SayHello(ctx, &req, &resp); err != nil {
 //assert.NoError(t, err)
 //var de duh.Error

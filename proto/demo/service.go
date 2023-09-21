@@ -19,6 +19,13 @@ func (h *Service) SayHello(ctx context.Context, req *SayHelloRequest, resp *SayH
 	return nil
 }
 
+// TestErrors will return a variety of errors depending on the req.Case provided.
+// Suitable for testing client implementations.
+// This method only responds with errors.
+func (h *Service) TestErrors(ctx context.Context, req *TestErrorsRequest) error {
+	return nil
+}
+
 // RenderPixel returns the color of a Mandelbrot fractal at the given point in the image.
 // Code copied from Francesc Campoy's Golang Tracer example (https://tinyurl.com/ery6mfz8)
 func (h *Service) RenderPixel(ctx context.Context, req *RenderPixelRequest, resp *RenderPixelResponse) error {

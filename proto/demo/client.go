@@ -72,3 +72,21 @@ func (c *Client) RenderPixel(ctx context.Context, req *RenderPixelRequest, resp 
 	r.Header.Set("Content-Type", duh.ContentTypeProtoBuf)
 	return c.Do(r, resp)
 }
+
+// TestErrors is used in test suites to test error handling
+func (c *Client) TestErrors(ctx context.Context, req proto.Message, resp proto.Message) error {
+	payload, err := proto.Marshal(req)
+	if err != nil {
+		return duh.NewClientError(duh.CodeClientError,
+			fmt.Errorf("while marshaling request payload: %w", err), nil)
+	}
+
+	r, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("%s/%s", c.endpoint, "v1/test.errors"), bytes.NewReader(payload))
+	if err != nil {
+		return duh.NewClientError(duh.CodeClientError, err, nil)
+	}
+
+	r.Header.Set("Content-Type", duh.ContentTypeProtoBuf)
+	return c.Do(r, resp)
+}

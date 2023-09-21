@@ -35,7 +35,7 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 
 	_, err := io.Copy(b, r.Body)
 	if err != nil {
-		return NewErrService(CodeBadRequest, "", err, nil)
+		return NewErrService(CodeTransportError, "", err, nil)
 	}
 
 	// Ignore multiple mime types separated by comma ',' or mime type parameters separated by semicolon ';'
@@ -44,16 +44,16 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 	switch strings.TrimSpace(strings.ToLower(mimeType)) {
 	case "", ContentTypeJSON:
 		if err := json.Unmarshal(b.Bytes(), m); err != nil {
-			return NewErrService(CodeBadRequest, "", err, nil)
+			return NewErrService(CodeTransportError, "", err, nil)
 		}
 		return nil
 	case ContentTypeProtoBuf:
 		if err := proto.Unmarshal(b.Bytes(), m); err != nil {
-			return NewErrService(CodeBadRequest, "", err, nil)
+			return NewErrService(CodeTransportError, "", err, nil)
 		}
 		return nil
 	}
-	return NewErrService(CodeBadRequest,
+	return NewErrService(CodeTransportError,
 		fmt.Sprintf("Content-Type header '%s' is invalid format or unrecognized content type",
 			r.Header.Get("Content-Type")), nil, nil)
 }
@@ -73,7 +73,7 @@ func ReplyWithCode(w http.ResponseWriter, r *http.Request, code int, details map
 func ReplyError(w http.ResponseWriter, r *http.Request, err error) {
 	var re Error
 	if errors.As(err, &re) {
-		Reply(w, r, re.StatusCode(), re.ProtoMessage())
+		Reply(w, r, re.Code(), re.ProtoMessage())
 		return
 	}
 	// If err has no Error in the error chain, then reply with CodeInternalError and the message
@@ -123,4 +123,9 @@ func TrimSuffix(s, sep string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// TODO:
+func IsTransportError(err error) bool {
+	return true
 }

@@ -40,3 +40,7 @@ message RenderPixelResponse {
   // Gray represents an 8-bit grayscale color.
   int64 gray = 1;
 }
+
+message TestErrorsRequest {
+  string case = 1;
+}
