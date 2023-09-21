@@ -49,6 +49,7 @@ func (c *HTTPClient) DoWithRetry(ctx context.Context, req *http.Request, out pro
 // In the case of unexpected request or response errors, Do will return *duh.ClientError
 // with as much detail as possible.
 func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
+	// Preform the HTTP call
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return &ClientError{
@@ -66,6 +67,7 @@ func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
 	body.Reset()
 	defer memory.Put(body)
 
+	// Copy the response into a buffer
 	if _, err = io.Copy(body, resp.Body); err != nil {
 		return &ClientError{
 			err: fmt.Errorf("while reading response body: %v", err),
@@ -78,24 +80,24 @@ func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
 		}
 	}
 
-	// If we get a code that is not a known Reply code
+	// If we get a code that is not a known DUH code, then don't attempt to un-marshal,
+	// instead read the body and return an error
 	if !IsReplyCode(resp.StatusCode) {
 		return ClientErrorFromBody(req, resp, body.Bytes(), nil)
 	}
 
+	// Handle content negotiation and un-marshal the response
 	mt := TrimSuffix(resp.Header.Get("Content-Type"), ";,")
 	switch strings.TrimSpace(strings.ToLower(mt)) {
 	case "", ContentTypeJSON:
 		return c.handleJSONResponse(req, resp, body.Bytes(), out)
 	case ContentTypeProtoBuf:
-		// TODO:
+		return c.handleProtobufResponse(req, resp, body.Bytes(), out)
 	}
-
 	return nil
 }
 
 func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
-	// Unmarshall the Reply structure and return the error
 	if resp.StatusCode != CodeOK {
 		var reply v1.Reply
 		if err := json.Unmarshal(body, &reply); err != nil {
@@ -108,7 +110,24 @@ func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, 
 		}
 		return ClientErrorFromReply(req, resp, &reply)
 	}
+
 	if err := json.Unmarshal(body, out); err != nil {
+		return NewErrService(CodeClientError, "",
+			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
+	}
+	return nil
+}
+
+func (c *HTTPClient) handleProtobufResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
+	if resp.StatusCode != CodeOK {
+		var reply v1.Reply
+		if err := proto.Unmarshal(body, &reply); err != nil {
+			return ClientErrorFromBody(req, resp, body, nil)
+		}
+		return ClientErrorFromReply(req, resp, &reply)
+	}
+
+	if err := proto.Unmarshal(body, out); err != nil {
 		return NewErrService(CodeClientError, "",
 			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}

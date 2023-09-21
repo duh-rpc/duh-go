@@ -4,19 +4,26 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	v1 "github.com/harbor-pkgs/duh/proto/v1"
+	json "google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
-
-	v1 "github.com/harbor-pkgs/duh/proto/v1"
-	json "google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
-var memory = sync.Pool{
-	New: func() interface{} { return bytes.NewBuffer(make([]byte, 2048)) },
-}
+const (
+	ContentTypeProtoBuf = "application/protobuf"
+	ContentTypeJSON     = "application/json"
+)
+
+var (
+	SupportedMimeTypes = []string{ContentTypeJSON, ContentTypeProtoBuf}
+	memory             = sync.Pool{
+		New: func() interface{} { return bytes.NewBuffer(make([]byte, 2048)) },
+	}
+)
 
 // ReadRequest reads the given http.Request body []byte into the given proto.Message.
 // The provided message must be mutable (e.g., a non-nil pointer to a message).
@@ -41,7 +48,10 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 		}
 		return nil
 	case ContentTypeProtoBuf:
-		// TODO: Implement protobuf next
+		if err := proto.Unmarshal(b.Bytes(), m); err != nil {
+			return NewErrService(CodeBadRequest, "", err, nil)
+		}
+		return nil
 	}
 	return NewErrService(CodeBadRequest,
 		fmt.Sprintf("Content-Type header '%s' is invalid format or unrecognized content type",
@@ -90,8 +100,15 @@ func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message)
 		w.WriteHeader(code)
 		_, _ = w.Write(b)
 	case ContentTypeProtoBuf:
-		// TODO: Implement protobuf
-		fallthrough
+		b, err := proto.Marshal(resp)
+		if err != nil {
+			ReplyWithCode(w, r, CodeInternalError, nil, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", ContentTypeProtoBuf)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(code)
+		_, _ = w.Write(b)
 	default:
 		r.Header.Set("Accept", ContentTypeJSON)
 		ReplyWithCode(w, r, CodeBadRequest, nil, fmt.Sprintf("Accept header '%s' is invalid format "+
@@ -107,10 +124,3 @@ func TrimSuffix(s, sep string) string {
 	}
 	return s
 }
-
-const (
-	ContentTypeProtoBuf = "application/protobuf"
-	ContentTypeJSON     = "application/json"
-)
-
-var SupportedMimeTypes = []string{ContentTypeJSON, ContentTypeProtoBuf}

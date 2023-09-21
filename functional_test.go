@@ -35,20 +35,19 @@ func TestDemo(t *testing.T) {
 	}
 
 	// Test happy path Protobuf request and response
-	//{
-	//	req := demo.RenderPixelRequest{
-	//		Complexity: 1024,
-	//		Height:     2048,
-	//		Width:      2048,
-	//		I:          1,
-	//		J:          1,
-	//	}
-	//
-	//	var resp demo.RenderPixelResponse
-	//	assert.NoError(t, c.RenderPixel(ctx, &req, &resp))
-	//	assert.Equal(t, 0, resp.Gray)
-	//
-	//}
+	{
+		req := demo.RenderPixelRequest{
+			Complexity: 1024,
+			Height:     2048,
+			Width:      2048,
+			I:          1,
+			J:          1,
+		}
+
+		var resp demo.RenderPixelResponse
+		assert.NoError(t, c.RenderPixel(ctx, &req, &resp))
+		assert.Equal(t, int64(72), resp.Gray)
+	}
 }
 
 // TODO: Setup Error cases for tests
