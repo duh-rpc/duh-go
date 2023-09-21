@@ -18,29 +18,8 @@ syntax = "proto3";
 
 package duh.v1;
 
-option go_package = "github.com/habor-pkg/duh/proto/demo";
+option go_package = "github.com/habor-pkg/duh/internal/test";
 
-message SayHelloRequest {
-  string name = 1;
-}
-
-message SayHelloResponse {
-  string message = 1;
-}
-
-message RenderPixelRequest {
-  double complexity = 1;
-  int64 height = 2;
-  int64 width = 3;
-  int64 i = 4;
-  int64 j = 5;
-}
-
-message RenderPixelResponse {
-  // Gray represents an 8-bit grayscale color.
-  int64 gray = 1;
-}
-
-message TestErrorsRequest {
+message ErrorsRequest {
   string case = 1;
 }

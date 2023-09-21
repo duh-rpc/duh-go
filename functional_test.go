@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/harbor-pkgs/duh"
+	"github.com/harbor-pkgs/duh/demo"
+	"github.com/harbor-pkgs/duh/internal/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/harbor-pkgs/duh/proto/demo"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDemoHappyPath(t *testing.T) {
@@ -66,16 +65,16 @@ func (t *badTransport) RoundTrip(rq *http.Request) (*http.Response, error) {
 var badTransportClient = http.Client{Transport: &badTransport{}}
 
 func TestClientErrors(t *testing.T) {
-	service := demo.NewService()
-	server := httptest.NewServer(&demo.Handler{Service: service})
+	service := test.NewService()
+	server := httptest.NewServer(&test.Handler{Service: service})
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	for _, tt := range []struct {
+		req     *test.ErrorsRequest
 		details map[string]string
-		conf    demo.ClientConfig
-		req     proto.Message
+		conf    test.ClientConfig
 		error   string
 		name    string
 		msg     string
@@ -84,18 +83,25 @@ func TestClientErrors(t *testing.T) {
 		{
 			name:  "fail to marshal protobuf request",
 			error: "Client Error: while marshaling request payload: string field contains invalid UTF-8",
-			conf:  demo.ClientConfig{Endpoint: server.URL},
-			req: &demo.SayHelloRequest{
-				Name: string([]byte{0x80, 0x81}),
+			conf:  test.ClientConfig{Endpoint: server.URL},
+			req: &test.ErrorsRequest{
+				Case: string([]byte{0x80, 0x81}),
 			},
 			code: duh.CodeClientError,
 		},
 		{
-			name:    "fail to create request",
+			name:  "fail to create request",
+			error: "Client Error: net/http: invalid method \"invalid method\"",
+			conf:  test.ClientConfig{Endpoint: ""},
+			req:   &test.ErrorsRequest{Case: test.CaseInvalidMethod},
+			code:  duh.CodeClientError,
+		},
+		{
+			name:    "fail to create send request",
 			error:   "Client Error: Post \"/v1/test.errors\": unsupported protocol scheme \"\"",
 			details: map[string]string{"http.method": "POST", "http.url": "/v1/test.errors"},
-			conf:    demo.ClientConfig{Endpoint: ""},
-			req:     &demo.SayHelloRequest{},
+			conf:    test.ClientConfig{Endpoint: ""},
+			req:     &test.ErrorsRequest{},
 			code:    duh.CodeClientError,
 		},
 		{
@@ -106,8 +112,8 @@ func TestClientErrors(t *testing.T) {
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
 				duh.DetailsHttpMethod: "POST",
 			},
-			conf: demo.ClientConfig{Endpoint: server.URL, Client: &badTransportClient},
-			req:  &demo.SayHelloRequest{},
+			conf: test.ClientConfig{Endpoint: server.URL, Client: &badTransportClient},
+			req:  &test.ErrorsRequest{},
 			code: duh.CodeClientError,
 		},
 		{
@@ -118,14 +124,14 @@ func TestClientErrors(t *testing.T) {
 				duh.DetailsHttpMethod: "POST",
 				duh.DetailsHttpStatus: "200 OK",
 			},
-			conf: demo.ClientConfig{Endpoint: server.URL},
-			req:  &demo.TestErrorsRequest{Case: "EOF"},
+			req:  &test.ErrorsRequest{Case: test.CaseClientIOError},
+			conf: test.ClientConfig{Endpoint: server.URL},
 			code: duh.CodeTransportError,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			c := demo.NewClient(tt.conf)
-			err := c.TestErrors(ctx, tt.req, nil)
+			c := test.NewClient(tt.conf)
+			err := c.TestErrors(ctx, tt.req)
 			var e duh.Error
 			require.True(t, errors.As(err, &e))
 			assert.Equal(t, tt.error, e.Error())

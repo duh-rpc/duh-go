@@ -1,4 +1,4 @@
-package demo
+package test
 
 import (
 	"bufio"
@@ -14,58 +14,15 @@ type Handler struct {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
-	// TODO: Middleware
-	// TODO: Authentication
-	// TODO: Authorization
-	// TODO: Max Read Limit Middleware
-	// TODO: Rate Limit Middleware
-
-	// No need for fancy routers, a switch case is performant and simple.
 	switch r.URL.Path {
-	case "/v1/say.hello":
-		h.handleSayHello(w, r)
-		return
-	case "/v1/render.pixel":
-		h.handleRenderPixel(w, r)
-		return
 	case "/v1/test.errors":
 		h.handleTestErrors(w, r)
 		return
 	}
 }
 
-func (h *Handler) handleSayHello(w http.ResponseWriter, r *http.Request) {
-	// TODO: Verify the authenticated user can access this endpoint
-	var req SayHelloRequest
-	if err := duh.ReadRequest(r, &req); err != nil {
-		duh.ReplyError(w, r, err)
-		return
-	}
-	var resp SayHelloResponse
-	if err := h.Service.SayHello(r.Context(), &req, &resp); err != nil {
-		duh.ReplyError(w, r, err)
-		return
-	}
-	duh.Reply(w, r, duh.CodeOK, &resp)
-}
-
-func (h *Handler) handleRenderPixel(w http.ResponseWriter, r *http.Request) {
-	var req RenderPixelRequest
-	if err := duh.ReadRequest(r, &req); err != nil {
-		duh.ReplyError(w, r, err)
-		return
-	}
-	var resp RenderPixelResponse
-	if err := h.Service.RenderPixel(r.Context(), &req, &resp); err != nil {
-		duh.ReplyError(w, r, err)
-		return
-	}
-	duh.Reply(w, r, duh.CodeOK, &resp)
-}
-
 func (h *Handler) handleTestErrors(w http.ResponseWriter, r *http.Request) {
-	var req TestErrorsRequest
+	var req ErrorsRequest
 
 	if err := duh.ReadRequest(r, &req); err != nil {
 		duh.ReplyError(w, r, err)
@@ -73,14 +30,14 @@ func (h *Handler) handleTestErrors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch req.Case {
-	case "EOF":
+	case CaseClientIOError:
 		// Force a chunked response by sending a ton of garbage to the client, this
 		// ensures the client will receive response headers such that the panic
 		//  abruptly cuts off the stream of chunks.
 		if err := chunkWriter(w, 100_000); err != nil {
 			log.Printf("during chunkWriter: %s", err)
 		}
-		panic("Panic in a Handler should terminate the connection with EOF")
+		panic("Panic in a Handler should terminate the connection")
 	}
 
 	duh.ReplyError(w, r, h.Service.TestErrors(r.Context(), &req))

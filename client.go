@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/runtime/protoiface"
 	"io"
 	"net/http"
 	"strings"
@@ -176,22 +175,4 @@ func NewClientError(code int, err error, details map[string]string) error {
 		code:    code,
 		err:     err,
 	}
-}
-
-// deprecated
-func MarshalProtoBuf(buf *bytes.Buffer, in proto.Message) ([]byte, error) {
-	out, err := proto.MarshalOptions{}.MarshalState(protoiface.MarshalInput{
-		Message: in.ProtoReflect(),
-		Buf:     buf.AvailableBuffer(),
-	})
-	fmt.Printf("len out buffer: %d\n", len(buf.AvailableBuffer()))
-	fmt.Printf("out buffer: %s\n", buf.AvailableBuffer())
-	fmt.Printf("out: %s\n", out.Buf)
-	return out.Buf, err
-}
-
-// deprecated
-func MarshalJSON(buf *bytes.Buffer, in proto.Message) error {
-	_, err := json.MarshalOptions{}.MarshalAppend(buf.Bytes(), in)
-	return err
 }
