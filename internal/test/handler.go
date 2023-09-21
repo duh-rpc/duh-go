@@ -2,7 +2,7 @@ package test
 
 import (
 	"bufio"
-	"github.com/harbor-pkgs/duh"
+	"github.com/duh-rpc/duh-go"
 	"io"
 	"log"
 	"math/rand"

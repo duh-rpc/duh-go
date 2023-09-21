@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/harbor-pkgs/duh/retry"
+	"github.com/duh-rpc/duh-go/retry"
 )
 
 type DoThingRequest struct{}

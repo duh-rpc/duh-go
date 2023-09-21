@@ -1,7 +1,7 @@
 package demo
 
 import (
-	"github.com/harbor-pkgs/duh"
+	"github.com/duh-rpc/duh-go"
 	"net/http"
 )
 

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/harbor-pkgs/duh"
+	"github.com/duh-rpc/duh-go"
 	"google.golang.org/protobuf/proto"
 	"net/http"
 )

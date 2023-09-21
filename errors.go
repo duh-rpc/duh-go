@@ -3,7 +3,7 @@ package duh
 import (
 	"net/http"
 
-	v1 "github.com/harbor-pkgs/duh/proto/v1"
+	v1 "github.com/duh-rpc/duh-go/proto/v1"
 	"google.golang.org/protobuf/proto"
 )
 

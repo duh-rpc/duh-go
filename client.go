@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	v1 "github.com/harbor-pkgs/duh/proto/v1"
+	v1 "github.com/duh-rpc/duh-go/proto/v1"
 	json "google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )

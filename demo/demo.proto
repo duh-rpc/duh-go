@@ -18,7 +18,7 @@ syntax = "proto3";
 
 package duh.v1;
 
-option go_package = "github.com/habor-pkg/duh/demo";
+option go_package = "github.com/duh-rpc/duh-go/demo";
 
 message SayHelloRequest {
   string name = 1;

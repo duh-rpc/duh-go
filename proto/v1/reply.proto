@@ -18,9 +18,8 @@ syntax = "proto3";
 
 package duh.v1;
 
-option go_package = "github.com/habor-pkg/duh/proto/v1";
+option go_package = "github.com/duh-rpc/duh-go/proto/v1";
 
-// TODO: Call this `Reply` instead, which makes it obvious this is a reply
 message Reply {
     int32 code = 1;
     string message = 2;
