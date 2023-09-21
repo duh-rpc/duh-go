@@ -39,7 +39,7 @@ func CodeText(code int) string {
 	case CodeConflict:
 		return "Conflict"
 	case CodeClientError:
-		return "Client Respond"
+		return "Client Reply"
 	case CodeTooManyRequests:
 		return "Too Many Requests"
 	case CodeInternalError:
@@ -66,30 +66,30 @@ func IsReplyCode(code int) bool {
 type Error interface {
 	// ProtoMessage Creates v1.Reply protobuf from this Error
 	ProtoMessage() proto.Message
-	// StatusCode is the HTTP status retrieved from v1.Respond.Details
+	// StatusCode is the HTTP status retrieved from v1.Reply.Details
 	StatusCode() int
 	// Error is the error message this error wrapped (Used on the server side)
 	Error() string
-	// Details is the details of the error retrieved from v1.Respond.Details
+	// Details is the details of the error retrieved from v1.Reply.Details
 	Details() map[string]string
-	// Message is the message retrieved from v1.Respond.Respond
+	// Message is the message retrieved from v1.Reply.Reply
 	Message() string
 }
 
-var _ Error = (*ErrService)(nil)
-var _ Error = (*ErrClient)(nil)
+var _ Error = (*ServiceError)(nil)
+var _ Error = (*ClientError)(nil)
 
-type ErrService struct {
+type ServiceError struct {
 	details map[string]string
 	msg     string
 	err     error
 	code    int
 }
 
-// NewErrService returns a new ErrService.
+// NewErrService returns a new ServiceError.
 // Server Implementations should use this to respond to requests with an error.
 func NewErrService(code int, msg string, err error, details map[string]string) error {
-	return &ErrService{
+	return &ServiceError{
 		details: details,
 		code:    code,
 		msg:     msg,
@@ -97,7 +97,7 @@ func NewErrService(code int, msg string, err error, details map[string]string) e
 	}
 }
 
-func (e *ErrService) ProtoMessage() proto.Message {
+func (e *ServiceError) ProtoMessage() proto.Message {
 	if e.err != nil && e.msg == "" {
 		e.msg = e.err.Error()
 	}
@@ -108,30 +108,30 @@ func (e *ErrService) ProtoMessage() proto.Message {
 	}
 }
 
-func (e *ErrService) StatusCode() int {
+func (e *ServiceError) StatusCode() int {
 	return e.code
 }
 
-func (e *ErrService) Message() string {
+func (e *ServiceError) Message() string {
 	return e.msg
 }
 
-func (e *ErrService) Error() string {
+func (e *ServiceError) Error() string {
 	return CodeText(e.code) + ":" + e.err.Error()
 }
 
-func (e *ErrService) Details() map[string]string {
+func (e *ServiceError) Details() map[string]string {
 	return e.details
 }
 
-type ErrClient struct {
+type ClientError struct {
 	details map[string]string
 	msg     string
 	err     error
 	code    int
 }
 
-func (e *ErrClient) ProtoMessage() proto.Message {
+func (e *ClientError) ProtoMessage() proto.Message {
 	if e.err != nil && e.msg == "" {
 		e.msg = e.err.Error()
 	}
@@ -142,19 +142,23 @@ func (e *ErrClient) ProtoMessage() proto.Message {
 	}
 }
 
-func (e *ErrClient) StatusCode() int {
+func (e *ClientError) StatusCode() int {
 	return e.code
 }
 
-func (e *ErrClient) Message() string {
+func (e *ClientError) Message() string {
 	return e.msg
 }
 
-func (e *ErrClient) Error() string {
-	return CodeText(e.code) + ":" + e.err.Error()
+func (e *ClientError) Error() string {
+	// TODO: Craft the correct error depending on the fields provided
+	if e.err != nil {
+		return CodeText(e.code) + ": " + e.err.Error()
+	}
+	return CodeText(e.code) + ": " + e.msg
 }
 
-func (e *ErrClient) Details() map[string]string {
+func (e *ClientError) Details() map[string]string {
 	return e.details
 }
 

@@ -17,9 +17,9 @@
 // versions:
 // 	protoc-gen-go v1.30.0
 // 	protoc        (unknown)
-// source: proto/v1/example.proto
+// source: proto/v1/demo.proto
 
-package v1
+package demo
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

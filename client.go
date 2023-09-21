@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/runtime/protoiface"
 	"io"
 	"net/http"
 	"strings"
@@ -14,7 +15,7 @@ import (
 )
 
 type HTTPClient struct {
-	client *http.Client
+	Client *http.Client
 }
 
 const (
@@ -45,12 +46,12 @@ func (c *HTTPClient) DoWithRetry(ctx context.Context, req *http.Request, out pro
 }
 
 // Do calls http.Client.Do() and un-marshals the response into the proto struct passed.
-// In the case of unexpected request or response errors, Do will return *duh.ErrClient
+// In the case of unexpected request or response errors, Do will return *duh.ClientError
 // with as much detail as possible.
 func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
-	resp, err := c.client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
-		return &ErrClient{
+		return &ClientError{
 			details: map[string]string{
 				DetailsHttpUrl:    req.URL.String(),
 				DetailsHttpMethod: req.Method,
@@ -61,12 +62,12 @@ func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body := bufferPool.Get().(*bytes.Buffer)
+	body := memory.Get().(*bytes.Buffer)
 	body.Reset()
-	defer bufferPool.Put(body)
+	defer memory.Put(body)
 
 	if _, err = io.Copy(body, resp.Body); err != nil {
-		return &ErrClient{
+		return &ClientError{
 			err: fmt.Errorf("while reading response body: %v", err),
 			details: map[string]string{
 				DetailsHttpUrl:    req.URL.String(),
@@ -79,14 +80,14 @@ func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
 
 	// If we get a code that is not a known Reply code
 	if !IsReplyCode(resp.StatusCode) {
-		return ErrFromNonReply(req, resp, body.Bytes(), nil)
+		return ClientErrorFromBody(req, resp, body.Bytes(), nil)
 	}
 
 	mt := TrimSuffix(resp.Header.Get("Content-Type"), ";,")
 	switch strings.TrimSpace(strings.ToLower(mt)) {
-	case "", "application/json":
+	case "", ContentTypeJSON:
 		return c.handleJSONResponse(req, resp, body.Bytes(), out)
-	case "application/protobuf":
+	case ContentTypeProtoBuf:
 		// TODO:
 	}
 
@@ -103,9 +104,9 @@ func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, 
 
 			// TODO: Ensure this error turns into a non standard error, such that clients users can
 			//  clearly identify this was a non standard 404 or whatever.
-			return ErrFromNonReply(req, resp, body, nil)
+			return ClientErrorFromBody(req, resp, body, nil)
 		}
-		return ErrFromReply(req, resp, &reply)
+		return ClientErrorFromReply(req, resp, &reply)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
 		return NewErrService(CodeClientError, "",
@@ -114,7 +115,7 @@ func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, 
 	return nil
 }
 
-func ErrFromReply(req *http.Request, resp *http.Response, reply *v1.Reply) error {
+func ClientErrorFromReply(req *http.Request, resp *http.Response, reply *v1.Reply) error {
 	details := map[string]string{
 		DetailsHttpCode:   fmt.Sprintf("%d", resp.StatusCode),
 		DetailsHttpUrl:    req.URL.String(),
@@ -128,15 +129,15 @@ func ErrFromReply(req *http.Request, resp *http.Response, reply *v1.Reply) error
 
 	// TODO: Handle CodeTooManyRequests, include a way to easily get those retry values
 	//  so retry.On() can get them.
-	return &ErrClient{
+	return &ClientError{
 		code:    int(reply.Code),
 		msg:     reply.Message,
 		details: details,
 	}
 }
 
-func ErrFromNonReply(req *http.Request, resp *http.Response, body []byte, err error) error {
-	return &ErrClient{
+func ClientErrorFromBody(req *http.Request, resp *http.Response, body []byte, err error) error {
+	return &ClientError{
 		details: map[string]string{
 			DetailsHttpCode:   fmt.Sprintf("%d", resp.StatusCode),
 			DetailsHttpBody:   fmt.Sprintf("%s", body),
@@ -148,4 +149,30 @@ func ErrFromNonReply(req *http.Request, resp *http.Response, body []byte, err er
 		// TODO: If err is nil and msg is empty, then report it as 'Unrecognized reply'
 		err: err,
 	}
+}
+
+func NewClientError(code int, err error, details map[string]string) error {
+	return &ClientError{
+		details: details,
+		code:    code,
+		err:     err,
+	}
+}
+
+// deprecated
+func MarshalProtoBuf(buf *bytes.Buffer, in proto.Message) ([]byte, error) {
+	out, err := proto.MarshalOptions{}.MarshalState(protoiface.MarshalInput{
+		Message: in.ProtoReflect(),
+		Buf:     buf.AvailableBuffer(),
+	})
+	fmt.Printf("len out buffer: %d\n", len(buf.AvailableBuffer()))
+	fmt.Printf("out buffer: %s\n", buf.AvailableBuffer())
+	fmt.Printf("out: %s\n", out.Buf)
+	return out.Buf, err
+}
+
+// deprecated
+func MarshalJSON(buf *bytes.Buffer, in proto.Message) error {
+	_, err := json.MarshalOptions{}.MarshalAppend(buf.Bytes(), in)
+	return err
 }
