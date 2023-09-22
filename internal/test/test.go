@@ -1,6 +1,7 @@
 package test
 
-var (
-	CaseInvalidMethod = "invalid method"
-	CaseClientIOError = "client IO error"
+const (
+	CaseInvalidMethod  = "invalid method"
+	CaseClientIOError  = "client IO error"
+	CaseNotImplemented = "not implemented"
 )

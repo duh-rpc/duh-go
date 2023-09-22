@@ -2,7 +2,6 @@ package duh
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +24,7 @@ const (
 	DetailsHttpBody   = "http.body"
 )
 
+// TODO: Move this documentation to retry.UntilSuccess
 // DoWithRetry is identical to Do() except it will retry using the default retry.UntilSuccess which
 // will retry all requests that return one of the following status codes.
 //
@@ -36,12 +36,13 @@ const (
 //
 // On 429 if the server provides a reset-time, DoWithRetry will calculate the appropriate retry time and
 // sleep until that time occurs or until the context is canceled.
-func (c *HTTPClient) DoWithRetry(ctx context.Context, req *http.Request, out proto.Message) error {
-	return c.Do(req, out)
-	// TODO: Finish retry package and enable this
-	//return retry.On(ctx, retry.UntilSuccess, func(ctx context.Context, i int) error {
-	//	return c.do(req, out)
-	//})
+
+// DoBytes sends the request and expects a `text/plain` response from the server.
+// If server doesn't respond with `text/plain` then it is assumed to be an error of v1.Reply
+// If server doesn't reply with v1.Reply then the body of the response is returned in an error.
+// TODO: Implement this and clean this up
+func (c *HTTPClient) DoBytes(req *http.Request, data []byte) error {
+	return nil
 }
 
 // Do calls http.Client.Do() and un-marshals the response into the proto struct passed.

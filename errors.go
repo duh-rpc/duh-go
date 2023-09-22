@@ -1,6 +1,7 @@
 package duh
 
 import (
+	"fmt"
 	"net/http"
 
 	v1 "github.com/duh-rpc/duh-go/proto/v1"
@@ -8,18 +9,18 @@ import (
 )
 
 const (
-	CodeOK               = 200
-	CodeBadRequest       = 400
-	CodeUnauthorized     = 401
-	CodeMethodNotAllowed = 403
-	CodeNotFound         = 404
-	CodeConflict         = 409
-	CodeTooManyRequests  = 429
-	CodeClientError      = 452
-	CodeRequestFailed    = 453
-	CodeInternalError    = 500
-	CodeNotImplemented   = 501
-	CodeTransportError   = 512
+	CodeOK              = 200
+	CodeBadRequest      = 400
+	CodeUnauthorized    = 401
+	CodeForbidden       = 403
+	CodeNotFound        = 404
+	CodeConflict        = 409
+	CodeTooManyRequests = 429
+	CodeClientError     = 452
+	CodeRequestFailed   = 453
+	CodeInternalError   = 500
+	CodeNotImplemented  = 501
+	CodeTransportError  = 512
 )
 
 func CodeText(code int) string {
@@ -32,8 +33,8 @@ func CodeText(code int) string {
 		return "Unauthorized"
 	case CodeRequestFailed:
 		return "Request Failed"
-	case CodeMethodNotAllowed:
-		return "Method Not Allowed"
+	case CodeForbidden:
+		return "Forbidden"
 	case CodeNotFound:
 		return "Not Found"
 	case CodeConflict:
@@ -55,7 +56,7 @@ func CodeText(code int) string {
 
 func IsReplyCode(code int) bool {
 	switch code {
-	case CodeOK, CodeBadRequest, CodeUnauthorized, CodeRequestFailed, CodeMethodNotAllowed,
+	case CodeOK, CodeBadRequest, CodeUnauthorized, CodeRequestFailed, CodeForbidden,
 		CodeNotFound, CodeConflict, CodeClientError, CodeTooManyRequests, CodeInternalError,
 		CodeNotImplemented, CodeTransportError:
 		return true
@@ -152,10 +153,18 @@ func (e *ClientError) Message() string {
 
 func (e *ClientError) Error() string {
 	// TODO: Craft the correct error depending on the fields provided
+
+	// If e.err is set, it means this error is NOT from the server
 	if e.err != nil {
 		return CodeText(e.code) + ": " + e.err.Error()
 	}
-	return CodeText(e.code) + ": " + e.msg
+	// Error is from the server
+	return fmt.Sprintf("%s %s failed with code '%s' and message '%s'",
+		e.details[DetailsHttpMethod],
+		e.details[DetailsHttpUrl],
+		CodeText(e.code),
+		e.msg,
+	)
 }
 
 //func (e *ClientError) Equal(err *ClientError) {

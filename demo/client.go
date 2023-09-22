@@ -33,7 +33,7 @@ func NewClient(conf ClientConfig) *Client {
 	}
 }
 
-// SayHello sends a name to the service using JSON and the service says hello.
+// SayHello sends a name to the service using JSON, and the service says hello.
 func (c *Client) SayHello(ctx context.Context, req *SayHelloRequest, resp *SayHelloResponse) error {
 	payload, err := json.Marshal(req)
 	if err != nil {

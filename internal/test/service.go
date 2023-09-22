@@ -1,6 +1,8 @@
 package test
 
-import "context"
+import (
+	"context"
+)
 
 // NewService creates a new service instance
 func NewService() *Service {
@@ -14,5 +16,8 @@ type Service struct{}
 // Suitable for testing client implementations.
 // This method only responds with errors.
 func (h *Service) TestErrors(ctx context.Context, req *ErrorsRequest) error {
+	switch req.Case {
+	}
+
 	return nil
 }

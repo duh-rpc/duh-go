@@ -26,6 +26,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleRenderPixel(w, r)
 		return
 	}
+	duh.ReplyWithCode(w, r, duh.CodeNotImplemented, nil, "no such method; "+r.URL.Path)
 }
 
 func (h *Handler) handleSayHello(w http.ResponseWriter, r *http.Request) {

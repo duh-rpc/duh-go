@@ -19,6 +19,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleTestErrors(w, r)
 		return
 	}
+	duh.ReplyWithCode(w, r, duh.CodeNotImplemented, nil, "no such method; "+r.URL.Path)
 }
 
 func (h *Handler) handleTestErrors(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +31,9 @@ func (h *Handler) handleTestErrors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch req.Case {
+	case CaseNotImplemented:
+		duh.ReplyWithCode(w, r, duh.CodeNotImplemented, nil, "no such method; "+r.URL.Path)
+		return
 	case CaseClientIOError:
 		// Force a chunked response by sending a ton of garbage to the client, this
 		// ensures the client will receive response headers such that the panic

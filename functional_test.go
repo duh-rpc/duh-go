@@ -128,6 +128,20 @@ func TestClientErrors(t *testing.T) {
 			conf: test.ClientConfig{Endpoint: server.URL},
 			code: duh.CodeTransportError,
 		},
+		{
+			name: "method not implemented",
+			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Not Implemented' "+
+				"and message 'no such method; /v1/test.errors'", server.URL),
+			msg: "no such method; /v1/test.errors",
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsHttpMethod: "POST",
+				duh.DetailsHttpStatus: "501 Not Implemented",
+			},
+			req:  &test.ErrorsRequest{Case: test.CaseNotImplemented},
+			conf: test.ClientConfig{Endpoint: server.URL},
+			code: duh.CodeNotImplemented,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			c := test.NewClient(tt.conf)
@@ -145,26 +159,12 @@ func TestClientErrors(t *testing.T) {
 	}
 }
 
-// TODO: Test no such method case
-
-// TODO: Setup Error cases for tests
+// TODO: Client example of passing `text/plain` with `duh.DoBytes()`
+// TODO: Test the RPC errors from the service
 // TODO: Update the benchmark tests
-//if err := c.SayHello(ctx, &req, &resp); err != nil {
-//assert.NoError(t, err)
-//var de duh.Error
-//if errors.As(err, &de) {
-//
-//	//de.Details()
-//	//de.Error()
-//	////msg := `HTTP failed on 'GET https://example.com' (X-Account-Id: '', X-Other-Thing: '') with '404' message 'Not Found'`
-//	//msg := `GET https://example.com failed with 'Not Found' message 'Fido is not in the Pet Shop'`
-//	//msg = `GET https://example.com failed with 'Request Failed' message 'while reading response body: EOF'`
-//	//msg = `GET https://example.com failed with 'Request Failed' message 'while parsing response body: expected {'`
-//	//fmt.Printf(msg)
-//
-//}
 
-// TODO: Start Testing the client!
+// TODO: DUH-RPC Validation Test for any endpoint
+//       Not Implemented Test
 
 // Is this a retryable error?
 // Is this an infra error?
