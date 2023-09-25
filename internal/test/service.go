@@ -19,10 +19,8 @@ type Service struct{}
 // This method only responds with errors.
 func (h *Service) TestErrors(ctx context.Context, req *ErrorsRequest) error {
 	switch req.Case {
-	case CaseServiceReturnedMessage:
-		return duh.NewServiceError(duh.CodeNotFound, "The thing you asked for does not exist", nil, nil)
 	case CaseServiceReturnedError:
-		return duh.NewServiceError(duh.CodeInternalError, "", errors.New("while reading the database: EOF"), nil)
+		return duh.NewServiceError(duh.CodeInternalError, errors.New("while reading the database: EOF"), nil)
 	}
 
 	return nil

@@ -110,7 +110,7 @@ func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, 
 	}
 
 	if err := json.Unmarshal(body, out); err != nil {
-		return NewServiceError(CodeClientError, "",
+		return NewServiceError(CodeClientError,
 			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}
 	return nil
@@ -126,7 +126,7 @@ func (c *HTTPClient) handleProtobufResponse(req *http.Request, resp *http.Respon
 	}
 
 	if err := proto.Unmarshal(body, out); err != nil {
-		return NewServiceError(CodeClientError, "",
+		return NewServiceError(CodeClientError,
 			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}
 	return nil

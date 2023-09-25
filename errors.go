@@ -82,30 +82,31 @@ var _ Error = (*ClientError)(nil)
 
 type ServiceError struct {
 	details map[string]string
-	msg     string
 	err     error
 	code    int
 }
 
 // NewServiceError returns a new ServiceError.
 // Server Implementations should use this to respond to requests with an error.
-func NewServiceError(code int, msg string, err error, details map[string]string) error {
+// TODO: Ensure you can get the `cause` of the error from ServiceError struct
+func NewServiceError(code int, err error, details map[string]string) error {
 	return &ServiceError{
 		details: details,
 		code:    code,
-		msg:     msg,
 		err:     err,
 	}
 }
 
 func (e *ServiceError) ProtoMessage() proto.Message {
-	if e.err != nil && e.msg == "" {
-		e.msg = e.err.Error()
-	}
 	return &v1.Reply{
+		Message: func() string {
+			if e.err != nil {
+				return e.err.Error()
+			}
+			return ""
+		}(),
 		Code:    int32(e.code),
 		Details: e.details,
-		Message: e.msg,
 	}
 }
 
@@ -114,7 +115,7 @@ func (e *ServiceError) Code() int {
 }
 
 func (e *ServiceError) Message() string {
-	return e.msg
+	return e.err.Error()
 }
 
 func (e *ServiceError) Error() string {

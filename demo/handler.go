@@ -1,6 +1,7 @@
 package demo
 
 import (
+	"fmt"
 	"github.com/duh-rpc/duh-go"
 	"net/http"
 )
@@ -16,6 +17,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authorization
 	// TODO: Max Read Limit Middleware
 	// TODO: Rate Limit Middleware
+
+	if r.Method != http.MethodPost {
+		duh.ReplyWithCode(w, r, duh.CodeBadRequest, nil,
+			fmt.Sprintf("http method '%s' not allowed; only POST", r.Method))
+		return
+	}
 
 	// No need for fancy routers, a switch case is performant and simple.
 	switch r.URL.Path {

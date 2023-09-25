@@ -206,6 +206,7 @@ func TestClientErrors(t *testing.T) {
 
 // TODO: DUH-RPC Validation Test for any endpoint
 //       Not Implemented Test
+//       Should error if non POST
 
 // Is this a retryable error?
 // Is this an infra error?
