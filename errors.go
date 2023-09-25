@@ -44,7 +44,7 @@ func CodeText(code int) string {
 	case CodeTooManyRequests:
 		return "Too Many Requests"
 	case CodeInternalError:
-		return "Internal Server Error"
+		return "Internal Service Error"
 	case CodeNotImplemented:
 		return "Not Implemented"
 	case CodeTransportError:
@@ -87,9 +87,9 @@ type ServiceError struct {
 	code    int
 }
 
-// NewErrService returns a new ServiceError.
+// NewServiceError returns a new ServiceError.
 // Server Implementations should use this to respond to requests with an error.
-func NewErrService(code int, msg string, err error, details map[string]string) error {
+func NewServiceError(code int, msg string, err error, details map[string]string) error {
 	return &ServiceError{
 		details: details,
 		code:    code,
@@ -126,10 +126,11 @@ func (e *ServiceError) Details() map[string]string {
 }
 
 type ClientError struct {
-	details map[string]string
-	msg     string
-	err     error
-	code    int
+	details      map[string]string
+	msg          string
+	err          error
+	isInfraError bool
+	code         int
 }
 
 func (e *ClientError) ProtoMessage() proto.Message {
@@ -154,11 +155,21 @@ func (e *ClientError) Message() string {
 func (e *ClientError) Error() string {
 	// TODO: Craft the correct error depending on the fields provided
 
-	// If e.err is set, it means this error is NOT from the server
+	// If e.err is set, it means this error is from the client
 	if e.err != nil {
 		return CodeText(e.code) + ": " + e.err.Error()
 	}
-	// Error is from the server
+
+	// This means the reply is not from the service, but from the infrastructure.
+	if e.isInfraError {
+		return fmt.Sprintf("%s %s returned infrastructure error '%d' with body '%s'",
+			e.details[DetailsHttpMethod],
+			e.details[DetailsHttpUrl],
+			e.code,
+			e.msg,
+		)
+	}
+	// Error is from the service
 	return fmt.Sprintf("%s %s failed with code '%s' and message '%s'",
 		e.details[DetailsHttpMethod],
 		e.details[DetailsHttpUrl],
@@ -167,28 +178,6 @@ func (e *ClientError) Error() string {
 	)
 }
 
-//func (e *ClientError) Equal(err *ClientError) {
-//	if e.msg == err.msg && e.code == e.code
-//}
-
 func (e *ClientError) Details() map[string]string {
 	return e.details
-}
-
-//// Error returns an error of the given code and message.
-//// You should use this when reporting an error that did not originate from an error of type `error`
-//func Error(code int, details map[string]string, msg string) error {
-//	return NewErrService(code, "", errors.New(msg), details)
-//}
-//
-//// Errorf returns a Status with a formatted error message (Supports %w)
-//func Errorf(code int, details map[string]string, format string, a ...interface{}) error {
-//	return NewErrService(code, "", fmt.Errorf(format, a...), details)
-//}
-
-// IsRetryable returns true if any error in the chain is of type Error, and is one
-// of the following codes [429,500,502,503,504]
-func IsRetryable(err error) bool {
-	// TODO
-	return false
 }

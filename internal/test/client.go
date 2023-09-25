@@ -36,8 +36,7 @@ func NewClient(conf ClientConfig) *Client {
 func (c *Client) TestErrors(ctx context.Context, req *ErrorsRequest) error {
 	payload, err := proto.Marshal(req)
 	if err != nil {
-		return duh.NewClientError(duh.CodeClientError,
-			fmt.Errorf("while marshaling request payload: %w", err), nil)
+		return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
 	}
 
 	m := http.MethodPost
@@ -48,7 +47,7 @@ func (c *Client) TestErrors(ctx context.Context, req *ErrorsRequest) error {
 	r, err := http.NewRequestWithContext(ctx, m,
 		fmt.Sprintf("%s/%s", c.endpoint, "v1/test.errors"), bytes.NewReader(payload))
 	if err != nil {
-		return duh.NewClientError(duh.CodeClientError, err, nil)
+		return duh.NewClientError(err, nil)
 	}
 
 	r.Header.Set("Content-Type", duh.ContentTypeProtoBuf)

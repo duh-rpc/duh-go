@@ -37,11 +37,11 @@ const (
 // On 429 if the server provides a reset-time, DoWithRetry will calculate the appropriate retry time and
 // sleep until that time occurs or until the context is canceled.
 
-// DoBytes sends the request and expects a `text/plain` response from the server.
-// If server doesn't respond with `text/plain` then it is assumed to be an error of v1.Reply
-// If server doesn't reply with v1.Reply then the body of the response is returned in an error.
+// DoByteStream sends the request and expects a `application/octet-stream` response from the server.
+// If server doesn't respond with `application/octet-stream` then it is assumed to be an error of v1.Reply
+// If the reply isn't a v1.Reply then the body of the response is returned as an error.
 // TODO: Implement this and clean this up
-func (c *HTTPClient) DoBytes(req *http.Request, data []byte) error {
+func (c *HTTPClient) DoByteStream(req *http.Request, data []byte) error {
 	return nil
 }
 
@@ -83,18 +83,19 @@ func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
 	// If we get a code that is not a known DUH code, then don't attempt to un-marshal,
 	// instead read the body and return an error
 	if !IsReplyCode(resp.StatusCode) {
-		return ClientErrorFromBody(req, resp, body.Bytes(), nil)
+		return NewInfraError(req, resp, body.Bytes())
 	}
 
 	// Handle content negotiation and un-marshal the response
 	mt := TrimSuffix(resp.Header.Get("Content-Type"), ";,")
 	switch strings.TrimSpace(strings.ToLower(mt)) {
-	case "", ContentTypeJSON:
+	case ContentTypeJSON:
 		return c.handleJSONResponse(req, resp, body.Bytes(), out)
 	case ContentTypeProtoBuf:
 		return c.handleProtobufResponse(req, resp, body.Bytes(), out)
+	default:
+		return NewInfraError(req, resp, body.Bytes())
 	}
-	return nil
 }
 
 func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
@@ -103,16 +104,13 @@ func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, 
 		if err := json.Unmarshal(body, &reply); err != nil {
 			// Assume the body is not a Reply structure because
 			// the server is not respecting the spec.
-
-			// TODO: Ensure this error turns into a non standard error, such that clients users can
-			//  clearly identify this was a non standard 404 or whatever.
-			return ClientErrorFromBody(req, resp, body, nil)
+			return NewInfraError(req, resp, body)
 		}
-		return ClientErrorFromReply(req, resp, &reply)
+		return NewReplyError(req, resp, &reply)
 	}
 
 	if err := json.Unmarshal(body, out); err != nil {
-		return NewErrService(CodeClientError, "",
+		return NewServiceError(CodeClientError, "",
 			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}
 	return nil
@@ -122,19 +120,24 @@ func (c *HTTPClient) handleProtobufResponse(req *http.Request, resp *http.Respon
 	if resp.StatusCode != CodeOK {
 		var reply v1.Reply
 		if err := proto.Unmarshal(body, &reply); err != nil {
-			return ClientErrorFromBody(req, resp, body, nil)
+			return NewInfraError(req, resp, body)
 		}
-		return ClientErrorFromReply(req, resp, &reply)
+		return NewReplyError(req, resp, &reply)
 	}
 
 	if err := proto.Unmarshal(body, out); err != nil {
-		return NewErrService(CodeClientError, "",
+		return NewServiceError(CodeClientError, "",
 			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}
 	return nil
 }
 
-func ClientErrorFromReply(req *http.Request, resp *http.Response, reply *v1.Reply) error {
+// NewReplyError returns an error that originates from the service implementation, and does not originate from
+// the client or infrastructure.
+//
+// This method is intended to be used by client implementations to pass v1.Reply responses
+// back to the caller as an error.
+func NewReplyError(req *http.Request, resp *http.Response, reply *v1.Reply) error {
 	details := map[string]string{
 		DetailsHttpCode:   fmt.Sprintf("%d", resp.StatusCode),
 		DetailsHttpUrl:    req.URL.String(),
@@ -155,7 +158,9 @@ func ClientErrorFromReply(req *http.Request, resp *http.Response, reply *v1.Repl
 	}
 }
 
-func ClientErrorFromBody(req *http.Request, resp *http.Response, body []byte, err error) error {
+// NewInfraError returns an error that originates from the infrastructure, and does not originate from
+// the client or service implementation.
+func NewInfraError(req *http.Request, resp *http.Response, body []byte) error {
 	return &ClientError{
 		details: map[string]string{
 			DetailsHttpCode:   fmt.Sprintf("%d", resp.StatusCode),
@@ -164,16 +169,19 @@ func ClientErrorFromBody(req *http.Request, resp *http.Response, body []byte, er
 			DetailsHttpStatus: resp.Status,
 			DetailsHttpMethod: req.Method,
 		},
-		code: resp.StatusCode,
+		msg:          fmt.Sprintf("%s", body),
+		code:         resp.StatusCode,
+		isInfraError: true,
 		// TODO: If err is nil and msg is empty, then report it as 'Unrecognized reply'
-		err: err,
 	}
 }
 
-func NewClientError(code int, err error, details map[string]string) error {
+// NewClientError returns an error that originates with the client code not from the service
+// implementation or from the infrastructure.
+func NewClientError(err error, details map[string]string) error {
 	return &ClientError{
+		code:    CodeClientError,
 		details: details,
-		code:    code,
 		err:     err,
 	}
 }

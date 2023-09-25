@@ -31,6 +31,10 @@ func (h *Handler) handleTestErrors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch req.Case {
+	case CaseInfrastructureError:
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(http.StatusText(http.StatusNotFound)))
+		return
 	case CaseNotImplemented:
 		duh.ReplyWithCode(w, r, duh.CodeNotImplemented, nil, "no such method; "+r.URL.Path)
 		return

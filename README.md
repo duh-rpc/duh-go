@@ -6,6 +6,10 @@ This spec defines support for only the following mime types which can be specifi
 * `application/json` - This MUST be used when sending or receiving JSON. The charset MUST be UTF-8
 * `application/protobuf` - This MUST be used when sending or receiving Protobuf. The charset MUST be ascii
 * `application/octet-stream` - The MUST be used when sending or receiving unstructured binary data. The charset is undefined. The client/server should receive and store the binary data in it's unmodified form.
+* `text/plain` - This should NOT be returned by service implementations. If the response has this content type or has no content type, this indicates to the client the response is not from the service, but from the HTTP infra or some other part of the HTTP stack that is outside of the service implementations control.
+
+> The service implementation MUST always return the content type of the response. It MUST NOT return `text/plain`.
+
 #### Content-Type and Accept Headers
 Clients SHOULD NOT specify any mime type parameters as specified in RFC2046.  Any parameters after `;` in the provided content type will be ignored by the server.
 

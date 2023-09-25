@@ -16,6 +16,8 @@ import (
 const (
 	ContentTypeProtoBuf = "application/protobuf"
 	ContentTypeJSON     = "application/json"
+	ContentOctetStream  = "application/octet-stream"
+	contentPlainText    = "text/plain"
 )
 
 var (
@@ -35,7 +37,7 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 
 	_, err := io.Copy(b, r.Body)
 	if err != nil {
-		return NewErrService(CodeTransportError, "", err, nil)
+		return NewServiceError(CodeTransportError, "", err, nil)
 	}
 
 	// Ignore multiple mime types separated by comma ',' or mime type parameters separated by semicolon ';'
@@ -44,16 +46,16 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 	switch strings.TrimSpace(strings.ToLower(mimeType)) {
 	case "", ContentTypeJSON:
 		if err := json.Unmarshal(b.Bytes(), m); err != nil {
-			return NewErrService(CodeTransportError, "", err, nil)
+			return NewServiceError(CodeTransportError, "", err, nil)
 		}
 		return nil
 	case ContentTypeProtoBuf:
 		if err := proto.Unmarshal(b.Bytes(), m); err != nil {
-			return NewErrService(CodeTransportError, "", err, nil)
+			return NewServiceError(CodeTransportError, "", err, nil)
 		}
 		return nil
 	}
-	return NewErrService(CodeTransportError,
+	return NewServiceError(CodeTransportError,
 		fmt.Sprintf("Content-Type header '%s' is invalid format or unrecognized content type",
 			r.Header.Get("Content-Type")), nil, nil)
 }

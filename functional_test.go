@@ -142,6 +142,48 @@ func TestClientErrors(t *testing.T) {
 			conf: test.ClientConfig{Endpoint: server.URL},
 			code: duh.CodeNotImplemented,
 		},
+		{
+			name: "infrastructure error",
+			error: fmt.Sprintf("POST %s/v1/test.errors returned infrastructure error "+
+				"'404' with body 'Not Found'", server.URL),
+			msg: "Not Found",
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsHttpMethod: "POST",
+				duh.DetailsHttpStatus: "404 Not Found",
+			},
+			req:  &test.ErrorsRequest{Case: test.CaseInfrastructureError},
+			conf: test.ClientConfig{Endpoint: server.URL},
+			code: http.StatusNotFound,
+		},
+		{
+			name: "service returned a message",
+			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Not Found'"+
+				" and message 'The thing you asked for does not exist'", server.URL),
+			msg: "The thing you asked for does not exist",
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsHttpStatus: "404 Not Found",
+				duh.DetailsHttpMethod: "POST",
+			},
+			req:  &test.ErrorsRequest{Case: test.CaseServiceReturnedMessage},
+			conf: test.ClientConfig{Endpoint: server.URL},
+			code: http.StatusNotFound,
+		},
+		{
+			name: "service returned an error",
+			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Internal Service Error' "+
+				"and message 'while reading the database: EOF'", server.URL),
+			msg: "while reading the database: EOF",
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsHttpStatus: "500 Internal Server Error",
+				duh.DetailsHttpMethod: "POST",
+			},
+			req:  &test.ErrorsRequest{Case: test.CaseServiceReturnedError},
+			conf: test.ClientConfig{Endpoint: server.URL},
+			code: http.StatusInternalServerError,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			c := test.NewClient(tt.conf)
@@ -159,8 +201,7 @@ func TestClientErrors(t *testing.T) {
 	}
 }
 
-// TODO: Client example of passing `text/plain` with `duh.DoBytes()`
-// TODO: Test the RPC errors from the service
+// TODO: Client example of passing `application/octet-stream` with `duh.DoBytes()`
 // TODO: Update the benchmark tests
 
 // TODO: DUH-RPC Validation Test for any endpoint
