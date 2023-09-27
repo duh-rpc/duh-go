@@ -12,7 +12,7 @@ import (
 
 // Client is a simple client that calls the Service
 type Client struct {
-	*duh.HTTPClient
+	*duh.Client
 	endpoint string
 }
 
@@ -26,7 +26,7 @@ func NewClient(conf ClientConfig) *Client {
 		conf.Client = &http.Client{Transport: http.DefaultTransport}
 	}
 	return &Client{
-		HTTPClient: &duh.HTTPClient{
+		Client: &duh.Client{
 			Client: conf.Client,
 		},
 		endpoint: conf.Endpoint,

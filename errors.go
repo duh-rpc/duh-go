@@ -71,7 +71,7 @@ type Error interface {
 	Code() int
 	// Error is the error message this error wrapped (Used on the server side)
 	Error() string
-	// Details is the details of the error retrieved from v1.Reply.Details
+	// Details is the Details of the error retrieved from v1.Reply.details
 	Details() map[string]string
 	// Message is the message retrieved from v1.Reply.Reply
 	Message() string
@@ -80,6 +80,7 @@ type Error interface {
 var _ Error = (*ServiceError)(nil)
 var _ Error = (*ClientError)(nil)
 
+// TODO: Decide if this should be public or not, I'm leaning toward not being public
 type ServiceError struct {
 	details map[string]string
 	err     error
@@ -126,6 +127,7 @@ func (e *ServiceError) Details() map[string]string {
 	return e.details
 }
 
+// TODO: Decide if this should be public or not, I'm leaning toward not being public
 type ClientError struct {
 	details      map[string]string
 	msg          string
@@ -154,8 +156,6 @@ func (e *ClientError) Message() string {
 }
 
 func (e *ClientError) Error() string {
-	// TODO: Craft the correct error depending on the fields provided
-
 	// If e.err is set, it means this error is from the client
 	if e.err != nil {
 		return CodeText(e.code) + ": " + e.err.Error()

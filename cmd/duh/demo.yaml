@@ -1,0 +1,8 @@
+api: /v1/say.hello
+resource:
+    name: Defer McPanic
+---
+api: /v1/say.hello
+resource:
+  name: Gopher McGoFace
+---

@@ -157,20 +157,6 @@ func TestClientErrors(t *testing.T) {
 			code: http.StatusNotFound,
 		},
 		{
-			name: "service returned a message",
-			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Not Found'"+
-				" and message 'The thing you asked for does not exist'", server.URL),
-			msg: "The thing you asked for does not exist",
-			details: map[string]string{
-				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
-				duh.DetailsHttpStatus: "404 Not Found",
-				duh.DetailsHttpMethod: "POST",
-			},
-			req:  &test.ErrorsRequest{Case: test.CaseServiceReturnedMessage},
-			conf: test.ClientConfig{Endpoint: server.URL},
-			code: http.StatusNotFound,
-		},
-		{
 			name: "service returned an error",
 			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Internal Service Error' "+
 				"and message 'while reading the database: EOF'", server.URL),

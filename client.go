@@ -2,17 +2,21 @@ package duh
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 
 	v1 "github.com/duh-rpc/duh-go/proto/v1"
+	"golang.org/x/net/http2"
 	json "google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
-type HTTPClient struct {
+type Client struct {
 	Client *http.Client
 }
 
@@ -22,6 +26,23 @@ const (
 	DetailsHttpMethod = "http.method"
 	DetailsHttpStatus = "http.status"
 	DetailsHttpBody   = "http.body"
+)
+
+var (
+	DefaultClient = &Client{
+		Client: &http.Client{
+			Transport: &http2.Transport{
+				// So http2.Transport doesn't complain the URL scheme isn't 'https'
+				AllowHTTP: true,
+				// Pretend we are dialing a TLS endpoint. (Note, we ignore the passed tls.Config)
+				// TODO: Update https://github.com/thrawn01/h2c-golang-example if this works
+				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+					var d net.Dialer
+					return d.DialContext(ctx, network, addr)
+				},
+			},
+		},
+	}
 )
 
 // TODO: Move this documentation to retry.UntilSuccess
@@ -37,29 +58,25 @@ const (
 // On 429 if the server provides a reset-time, DoWithRetry will calculate the appropriate retry time and
 // sleep until that time occurs or until the context is canceled.
 
-// DoByteStream sends the request and expects a `application/octet-stream` response from the server.
+// DoOctetStream sends the request and expects a `application/octet-stream` response from the server.
 // If server doesn't respond with `application/octet-stream` then it is assumed to be an error of v1.Reply
 // If the reply isn't a v1.Reply then the body of the response is returned as an error.
 // TODO: Implement this and clean this up
-func (c *HTTPClient) DoByteStream(req *http.Request, data []byte) error {
+func (c *Client) DoOctetStream(req *http.Request, code *int, r io.ReadCloser) error {
 	return nil
 }
 
 // Do calls http.Client.Do() and un-marshals the response into the proto struct passed.
 // In the case of unexpected request or response errors, Do will return *duh.ClientError
 // with as much detail as possible.
-func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
+func (c *Client) Do(req *http.Request, out proto.Message) error {
 	// Preform the HTTP call
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return &ClientError{
-			details: map[string]string{
-				DetailsHttpUrl:    req.URL.String(),
-				DetailsHttpMethod: req.Method,
-			},
-			code: CodeClientError,
-			err:  err,
-		}
+		return NewClientError(err, map[string]string{
+			DetailsHttpUrl:    req.URL.String(),
+			DetailsHttpMethod: req.Method,
+		})
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -98,7 +115,7 @@ func (c *HTTPClient) Do(req *http.Request, out proto.Message) error {
 	}
 }
 
-func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
+func (c *Client) handleJSONResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
 	if resp.StatusCode != CodeOK {
 		var reply v1.Reply
 		if err := json.Unmarshal(body, &reply); err != nil {
@@ -116,7 +133,7 @@ func (c *HTTPClient) handleJSONResponse(req *http.Request, resp *http.Response, 
 	return nil
 }
 
-func (c *HTTPClient) handleProtobufResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
+func (c *Client) handleProtobufResponse(req *http.Request, resp *http.Response, body []byte, out proto.Message) error {
 	if resp.StatusCode != CodeOK {
 		var reply v1.Reply
 		if err := proto.Unmarshal(body, &reply); err != nil {
@@ -172,7 +189,6 @@ func NewInfraError(req *http.Request, resp *http.Response, body []byte) error {
 		msg:          fmt.Sprintf("%s", body),
 		code:         resp.StatusCode,
 		isInfraError: true,
-		// TODO: If err is nil and msg is empty, then report it as 'Unrecognized reply'
 	}
 }
 
