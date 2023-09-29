@@ -44,7 +44,7 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 	mimeType := TrimSuffix(r.Header.Get("Content-Type"), ";,")
 
 	switch strings.TrimSpace(strings.ToLower(mimeType)) {
-	case "", ContentTypeJSON:
+	case "", "*/*", "application/*", ContentTypeJSON:
 		if err := json.Unmarshal(b.Bytes(), m); err != nil {
 			return NewServiceError(CodeContentTypeError, err, nil)
 		}
@@ -91,7 +91,7 @@ func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message)
 	mimeType := TrimSuffix(r.Header.Get("Accept"), ";,")
 
 	switch strings.TrimSpace(strings.ToLower(mimeType)) {
-	case "", ContentTypeJSON:
+	case "", "*/*", "application/*", ContentTypeJSON:
 		b, err := json.Marshal(resp)
 		if err != nil {
 			// TODO: This should be logged and not returned to the client, we need to define a logger
