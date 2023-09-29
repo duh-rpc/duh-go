@@ -6,4 +6,5 @@ const (
 	CaseNotImplemented       = "case: Not implemented"
 	CaseInfrastructureError  = "case: infrastructure error"
 	CaseServiceReturnedError = "case: Service returned an error"
+	CaseContentTypeError     = "case: Content type error"
 )

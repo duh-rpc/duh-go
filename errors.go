@@ -9,18 +9,19 @@ import (
 )
 
 const (
-	CodeOK              = 200
-	CodeBadRequest      = 400
-	CodeUnauthorized    = 401
-	CodeForbidden       = 403
-	CodeNotFound        = 404
-	CodeConflict        = 409
-	CodeTooManyRequests = 429
-	CodeClientError     = 452
-	CodeRequestFailed   = 453
-	CodeInternalError   = 500
-	CodeNotImplemented  = 501
-	CodeTransportError  = 512
+	CodeOK               = 200
+	CodeBadRequest       = 400
+	CodeUnauthorized     = 401
+	CodeForbidden        = 403
+	CodeNotFound         = 404
+	CodeConflict         = 409
+	CodeTooManyRequests  = 429
+	CodeClientError      = 452
+	CodeRequestFailed    = 453
+	CodeInternalError    = 500
+	CodeNotImplemented   = 501
+	CodeTransportError   = 512
+	CodeContentTypeError = 513
 )
 
 func CodeText(code int) string {
@@ -49,6 +50,8 @@ func CodeText(code int) string {
 		return "Not Implemented"
 	case CodeTransportError:
 		return "Transport Error"
+	case CodeContentTypeError:
+		return "Content Type Error"
 	default:
 		return http.StatusText(code)
 	}
@@ -58,7 +61,7 @@ func IsReplyCode(code int) bool {
 	switch code {
 	case CodeOK, CodeBadRequest, CodeUnauthorized, CodeRequestFailed, CodeForbidden,
 		CodeNotFound, CodeConflict, CodeClientError, CodeTooManyRequests, CodeInternalError,
-		CodeNotImplemented, CodeTransportError:
+		CodeNotImplemented, CodeTransportError, CodeContentTypeError:
 		return true
 	}
 	return false
@@ -171,7 +174,7 @@ func (e *ClientError) Error() string {
 		)
 	}
 	// Error is from the service
-	return fmt.Sprintf("%s %s failed with code '%s' and message '%s'",
+	return fmt.Sprintf("%s %s returned code '%s' and message '%s'",
 		e.details[DetailsHttpMethod],
 		e.details[DetailsHttpUrl],
 		CodeText(e.code),

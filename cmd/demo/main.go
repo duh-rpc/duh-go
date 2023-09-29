@@ -72,13 +72,13 @@ func main() {
 	}()
 
 	<-stop
-	log.Println("Shutting down the server...")
+	log.Println("Shutting down the service...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	err := server.Shutdown(ctx)
-	checkErr(err, "during server shutdown")
+	checkErr(err, "during service shutdown")
 
-	log.Println("Server shutdown complete")
+	log.Println("Service shutdown complete")
 }

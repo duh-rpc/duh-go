@@ -130,13 +130,13 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name: "method not implemented",
-			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Not Implemented' "+
+			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Not Implemented' "+
 				"and message 'no such method; /v1/test.errors'", server.URL),
 			msg: "no such method; /v1/test.errors",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsCodeText:   "Not Implemented",
 				duh.DetailsHttpMethod: "POST",
-				duh.DetailsHttpStatus: "501 Not Implemented",
 			},
 			req:  &test.ErrorsRequest{Case: test.CaseNotImplemented},
 			conf: test.ClientConfig{Endpoint: server.URL},
@@ -149,8 +149,8 @@ func TestClientErrors(t *testing.T) {
 			msg: "Not Found",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
-				duh.DetailsHttpMethod: "POST",
 				duh.DetailsHttpStatus: "404 Not Found",
+				duh.DetailsHttpMethod: "POST",
 			},
 			req:  &test.ErrorsRequest{Case: test.CaseInfrastructureError},
 			conf: test.ClientConfig{Endpoint: server.URL},
@@ -158,17 +158,31 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name: "service returned an error",
-			error: fmt.Sprintf("POST %s/v1/test.errors failed with code 'Internal Service Error' "+
+			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Internal Service Error' "+
 				"and message 'while reading the database: EOF'", server.URL),
 			msg: "while reading the database: EOF",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
-				duh.DetailsHttpStatus: "500 Internal Server Error",
+				duh.DetailsCodeText:   "Internal Service Error",
 				duh.DetailsHttpMethod: "POST",
 			},
 			req:  &test.ErrorsRequest{Case: test.CaseServiceReturnedError},
 			conf: test.ClientConfig{Endpoint: server.URL},
 			code: http.StatusInternalServerError,
+		},
+		{
+			name: "service returned content type error",
+			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Content Type Error' "+
+				"and message 'proto: cannot parse invalid wire-format data'", server.URL),
+			msg: "proto: cannot parse invalid wire-format data",
+			details: map[string]string{
+				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
+				duh.DetailsCodeText:   "Content Type Error",
+				duh.DetailsHttpMethod: "POST",
+			},
+			req:  &test.ErrorsRequest{Case: test.CaseContentTypeError},
+			conf: test.ClientConfig{Endpoint: server.URL},
+			code: duh.CodeContentTypeError,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

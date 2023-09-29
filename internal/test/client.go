@@ -34,14 +34,22 @@ func NewClient(conf ClientConfig) *Client {
 
 // TestErrors is used in test suite to test error handling
 func (c *Client) TestErrors(ctx context.Context, req *ErrorsRequest) error {
-	payload, err := proto.Marshal(req)
-	if err != nil {
-		return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
-	}
-
 	m := http.MethodPost
 	if req.Case == CaseInvalidMethod {
 		m = "invalid method"
+	}
+
+	var payload []byte
+	var err error
+
+	if req.Case == CaseContentTypeError {
+		// Send bogus content
+		payload = []byte("This is not a protobuf message")
+	} else {
+		payload, err = proto.Marshal(req)
+		if err != nil {
+			return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
+		}
 	}
 
 	r, err := http.NewRequestWithContext(ctx, m,

@@ -26,6 +26,7 @@ const (
 	DetailsHttpMethod = "http.method"
 	DetailsHttpStatus = "http.status"
 	DetailsHttpBody   = "http.body"
+	DetailsCodeText   = "duh.code-text"
 )
 
 var (
@@ -157,8 +158,8 @@ func (c *Client) handleProtobufResponse(req *http.Request, resp *http.Response, 
 func NewReplyError(req *http.Request, resp *http.Response, reply *v1.Reply) error {
 	details := map[string]string{
 		DetailsHttpCode:   fmt.Sprintf("%d", resp.StatusCode),
+		DetailsCodeText:   CodeText(resp.StatusCode),
 		DetailsHttpUrl:    req.URL.String(),
-		DetailsHttpStatus: resp.Status,
 		DetailsHttpMethod: req.Method,
 	}
 

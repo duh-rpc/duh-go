@@ -46,16 +46,16 @@ func ReadRequest(r *http.Request, m proto.Message) error {
 	switch strings.TrimSpace(strings.ToLower(mimeType)) {
 	case "", ContentTypeJSON:
 		if err := json.Unmarshal(b.Bytes(), m); err != nil {
-			return NewServiceError(CodeTransportError, err, nil)
+			return NewServiceError(CodeContentTypeError, err, nil)
 		}
 		return nil
 	case ContentTypeProtoBuf:
 		if err := proto.Unmarshal(b.Bytes(), m); err != nil {
-			return NewServiceError(CodeTransportError, err, nil)
+			return NewServiceError(CodeContentTypeError, err, nil)
 		}
 		return nil
 	}
-	return NewServiceError(CodeTransportError,
+	return NewServiceError(CodeContentTypeError,
 		fmt.Errorf("Content-Type header '%s' is invalid format or unrecognized content type",
 			r.Header.Get("Content-Type")), nil)
 }
@@ -94,6 +94,7 @@ func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message)
 	case "", ContentTypeJSON:
 		b, err := json.Marshal(resp)
 		if err != nil {
+			// TODO: This should be logged and not returned to the client, we need to define a logger
 			ReplyWithCode(w, r, CodeInternalError, nil, err.Error())
 			return
 		}
@@ -104,6 +105,7 @@ func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message)
 	case ContentTypeProtoBuf:
 		b, err := proto.Marshal(resp)
 		if err != nil {
+			// TODO: This should be logged and not returned to the client, we need to define a logger
 			ReplyWithCode(w, r, CodeInternalError, nil, err.Error())
 			return
 		}
@@ -113,7 +115,7 @@ func Reply(w http.ResponseWriter, r *http.Request, code int, resp proto.Message)
 		_, _ = w.Write(b)
 	default:
 		r.Header.Set("Accept", ContentTypeJSON)
-		ReplyWithCode(w, r, CodeBadRequest, nil, fmt.Sprintf("Accept header '%s' is invalid format "+
+		ReplyWithCode(w, r, CodeContentTypeError, nil, fmt.Sprintf("Accept header '%s' is invalid format "+
 			"or unrecognized content type, only [%s] are supported by this method",
 			mimeType, strings.Join(SupportedMimeTypes, ",")))
 	}
@@ -125,9 +127,4 @@ func TrimSuffix(s, sep string) string {
 		return s[:i]
 	}
 	return s
-}
-
-// TODO:
-func IsTransportError(err error) bool {
-	return true
 }
