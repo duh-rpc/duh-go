@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	v1 "github.com/duh-rpc/duh-go/proto/v1"
 	"golang.org/x/net/http2"
@@ -30,13 +31,34 @@ const (
 )
 
 var (
-	DefaultClient = &Client{
+	// DefaultClient is the default HTTP client to use when making RPC calls.
+	// We use the HTTP/1 client as it outperforms both GRPC and HTTP/2
+	// See:
+	// * https://github.com/duh-rpc/duh-go-benchmarks
+	// * https://github.com/golang/go/issues/47840
+	// * https://www.emcfarlane.com/blog/2023-05-15-grpc-servehttp
+	// * https://github.com/kgersen/h3ctx
+	DefaultClient = HTTP1Client
+
+	// HTTP1Client is the default golang http with a limit on Idle connections
+	HTTP1Client = &Client{
+		Client: &http.Client{
+			Transport: &http.Transport{
+				IdleConnTimeout:     90 * time.Second,
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				MaxConnsPerHost:     0,
+			},
+		},
+	}
+
+	// HTTP2Client is a client configured for H2C HTTP/2
+	HTTP2Client = &Client{
 		Client: &http.Client{
 			Transport: &http2.Transport{
 				// So http2.Transport doesn't complain the URL scheme isn't 'https'
 				AllowHTTP: true,
 				// Pretend we are dialing a TLS endpoint. (Note, we ignore the passed tls.Config)
-				// TODO: Update https://github.com/thrawn01/h2c-golang-example if this works
 				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 					var d net.Dialer
 					return d.DialContext(ctx, network, addr)

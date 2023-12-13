@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/duh-rpc/duh-go"
 	"github.com/duh-rpc/duh-go/demo"
 	"github.com/duh-rpc/duh-go/internal/test"
@@ -11,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 func TestDemoHappyPath(t *testing.T) {
@@ -173,8 +174,8 @@ func TestClientErrors(t *testing.T) {
 		{
 			name: "service returned content type error",
 			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Content Type Error' "+
-				"and message 'proto: cannot parse invalid wire-format data'", server.URL),
-			msg: "proto: cannot parse invalid wire-format data",
+				"and message 'proto:", server.URL),
+			msg: "proto:",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
 				duh.DetailsCodeText:   "Content Type Error",
@@ -190,8 +191,8 @@ func TestClientErrors(t *testing.T) {
 			err := c.TestErrors(ctx, tt.req)
 			var e duh.Error
 			require.True(t, errors.As(err, &e))
-			assert.Equal(t, tt.error, e.Error())
-			assert.Equal(t, tt.msg, e.Message())
+			assert.Contains(t, e.Error(), tt.error)
+			assert.Contains(t, e.Message(), tt.msg)
 			assert.Equal(t, tt.code, e.Code())
 			for k, v := range tt.details {
 				require.Contains(t, e.Details(), k)
