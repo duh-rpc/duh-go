@@ -103,19 +103,19 @@ func main() {
 func sendRequest(ctx context.Context, c config, api string, req any) error {
 	payload, err := json.Marshal(req)
 	if err != nil {
-		return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
+		return duh.NewClientError("while marshaling request payload: %w", err, nil)
 	}
 
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		fmt.Sprintf("http://%s%s", c.Address, api), bytes.NewReader(payload))
 	if err != nil {
-		return duh.NewClientError(err, nil)
+		return duh.NewClientError("", err, nil)
 	}
 	r.Header.Set("Content-Type", duh.ContentTypeJSON)
 
 	resp, err := duh.DefaultClient.Client.Do(r)
 	if err != nil {
-		return duh.NewClientError(err, map[string]string{
+		return duh.NewClientError("", err, map[string]string{
 			duh.DetailsHttpUrl:    r.URL.String(),
 			duh.DetailsHttpMethod: r.Method,
 		})

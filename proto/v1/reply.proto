@@ -20,6 +20,7 @@ option go_package = "github.com/duh-rpc/duh-go/proto/v1";
 
 message Reply {
     int32 code = 1;
-    string message = 2;
-    map<string, string> details = 3;
+    string code_text = 2;
+    string message = 3;
+    map<string, string> details = 4;
 }

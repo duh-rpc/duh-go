@@ -16,7 +16,6 @@ package retry_test
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/duh-rpc/duh-go/retry"
@@ -50,17 +49,17 @@ func ExampleOn() {
 	// `retry.Twice` is the policy that governs when to retry.
 	// The `retry.Twice` policy will retry 'twice' if the server responded with one of the following retryable errors
 	// The `retry.Twice` uses the default back off policy
-	err := retry.On(ctx, retry.Twice, func(ctx context.Context, attempt int) error {
+	_ = retry.On(ctx, retry.Twice, func(ctx context.Context, attempt int) error {
 		return c.DoThing(ctx, &DoThingRequest{}, &resp)
 	})
 
 	// The `retry.UntilSuccess` policy will retry on retryable errors until success, using the default back off policy.
-	err = retry.On(ctx, retry.UntilSuccess, func(ctx context.Context, attempt int) error {
+	_ = retry.On(ctx, retry.UntilSuccess, func(ctx context.Context, attempt int) error {
 		return c.DoThing(ctx, &DoThingRequest{}, &resp)
 	})
 
 	// The `retry.OnConflict` policy will retry only on 409 conflict or until success, using the default back off policy.
-	err = retry.On(ctx, retry.OnConflict, func(ctx context.Context, attempt int) error {
+	_ = retry.On(ctx, retry.OnConflict, func(ctx context.Context, attempt int) error {
 		return c.DoThing(ctx, &DoThingRequest{}, &resp)
 	})
 
@@ -75,7 +74,7 @@ func ExampleOn() {
 	}
 
 	// Users can define a custom retry policy to suit their needs
-	err = retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
+	_ = retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
 		return c.DoThing(ctx, &DoThingRequest{}, &resp)
 	})
 
@@ -87,11 +86,7 @@ func ExampleOn() {
 		Attempts: 0,
 	}
 
-	err = retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
+	_ = retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
 		return c.DoThing(ctx, &DoThingRequest{}, &resp)
 	})
-
-	if err != nil {
-		fmt.Printf("Error was: %s", err)
-	}
 }

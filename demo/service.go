@@ -17,6 +17,10 @@ package demo
 import (
 	"context"
 	"fmt"
+
+	"github.com/duh-rpc/duh-go"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // NewService creates a new service instance
@@ -28,7 +32,12 @@ func NewService() *Service {
 type Service struct{}
 
 func (h *Service) SayHello(ctx context.Context, req *SayHelloRequest, resp *SayHelloResponse) error {
-	// TODO: Validate the payload is valid (If the name isn't capitalized, we should reject it for giggles)
+	if req.Name == "" {
+		return duh.NewServiceError(duh.CodeBadRequest, "'name' is required and cannot be empty", nil, nil)
+	}
+	if cases.Title(language.English).String(req.Name) != req.Name {
+		return duh.NewServiceError(duh.CodeBadRequest, "'name' must be capitalized", nil, nil)
+	}
 	resp.Message = fmt.Sprintf("Hello, %s", req.Name)
 	return nil
 }

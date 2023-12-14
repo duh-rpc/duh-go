@@ -62,14 +62,14 @@ func (c *Client) TestErrors(ctx context.Context, req *ErrorsRequest) error {
 	} else {
 		payload, err = proto.Marshal(req)
 		if err != nil {
-			return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
+			return duh.NewClientError("while marshaling request payload: %w", err, nil)
 		}
 	}
 
 	r, err := http.NewRequestWithContext(ctx, m,
 		fmt.Sprintf("%s/%s", c.endpoint, "v1/test.errors"), bytes.NewReader(payload))
 	if err != nil {
-		return duh.NewClientError(err, nil)
+		return duh.NewClientError("", err, nil)
 	}
 
 	r.Header.Set("Content-Type", duh.ContentTypeProtoBuf)

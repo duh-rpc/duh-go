@@ -52,13 +52,13 @@ func NewClient(conf ClientConfig) *Client {
 func (c *Client) SayHello(ctx context.Context, req *SayHelloRequest, resp *SayHelloResponse) error {
 	payload, err := json.Marshal(req)
 	if err != nil {
-		return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
+		return duh.NewClientError("while marshaling request payload: %w", err, nil)
 	}
 
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		fmt.Sprintf("%s/%s", c.endpoint, "v1/say.hello"), bytes.NewReader(payload))
 	if err != nil {
-		return duh.NewClientError(err, nil)
+		return duh.NewClientError("", err, nil)
 	}
 
 	// Tell the server what kind of serialization we are sending it.
@@ -73,13 +73,13 @@ func (c *Client) SayHello(ctx context.Context, req *SayHelloRequest, resp *SayHe
 func (c *Client) RenderPixel(ctx context.Context, req *RenderPixelRequest, resp *RenderPixelResponse) error {
 	payload, err := proto.Marshal(req)
 	if err != nil {
-		return duh.NewClientError(fmt.Errorf("while marshaling request payload: %w", err), nil)
+		return duh.NewClientError("while marshaling request payload: %w", err, nil)
 	}
 
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		fmt.Sprintf("%s/%s", c.endpoint, "v1/render.pixel"), bytes.NewReader(payload))
 	if err != nil {
-		return duh.NewClientError(err, nil)
+		return duh.NewClientError("", err, nil)
 	}
 
 	r.Header.Set("Content-Type", duh.ContentTypeProtoBuf)

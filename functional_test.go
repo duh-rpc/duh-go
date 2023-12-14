@@ -186,18 +186,18 @@ func TestClientErrors(t *testing.T) {
 			code: http.StatusInternalServerError,
 		},
 		{
-			name: "service returned content type error",
-			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Content Type Error' "+
+			name: "service returned client content error",
+			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Client Content Error' "+
 				"and message 'proto:", server.URL),
 			msg: "proto:",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
-				duh.DetailsCodeText:   "Content Type Error",
+				duh.DetailsCodeText:   "Client Content Error",
 				duh.DetailsHttpMethod: "POST",
 			},
 			req:  &test.ErrorsRequest{Case: test.CaseContentTypeError},
 			conf: test.ClientConfig{Endpoint: server.URL},
-			code: duh.CodeContentTypeError,
+			code: duh.CodeClientContentError,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

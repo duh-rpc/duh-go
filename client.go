@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -110,7 +111,7 @@ func (c *Client) Do(req *http.Request, out proto.Message) error {
 	// Preform the HTTP call
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return NewClientError(err, map[string]string{
+		return NewClientError("", err, map[string]string{
 			DetailsHttpUrl:    req.URL.String(),
 			DetailsHttpMethod: req.Method,
 		})
@@ -165,7 +166,7 @@ func (c *Client) handleJSONResponse(req *http.Request, resp *http.Response, body
 
 	if err := json.Unmarshal(body, out); err != nil {
 		return NewServiceError(CodeClientError,
-			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
+			"", fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}
 	return nil
 }
@@ -181,7 +182,7 @@ func (c *Client) handleProtobufResponse(req *http.Request, resp *http.Response, 
 
 	if err := proto.Unmarshal(body, out); err != nil {
 		return NewServiceError(CodeClientError,
-			fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
+			"", fmt.Errorf("while parsing response body '%s': %w", body, err), nil)
 	}
 	return nil
 }
@@ -218,12 +219,12 @@ func NewInfraError(req *http.Request, resp *http.Response, body []byte) error {
 	return &ClientError{
 		details: map[string]string{
 			DetailsHttpCode:   fmt.Sprintf("%d", resp.StatusCode),
-			DetailsHttpBody:   fmt.Sprintf("%s", body),
+			DetailsHttpBody:   string(body),
 			DetailsHttpUrl:    req.URL.String(),
 			DetailsHttpStatus: resp.Status,
 			DetailsHttpMethod: req.Method,
 		},
-		msg:          fmt.Sprintf("%s", body),
+		msg:          string(body),
 		code:         resp.StatusCode,
 		isInfraError: true,
 	}
@@ -231,7 +232,14 @@ func NewInfraError(req *http.Request, resp *http.Response, body []byte) error {
 
 // NewClientError returns an error that originates with the client code not from the service
 // implementation or from the infrastructure.
-func NewClientError(err error, details map[string]string) error {
+func NewClientError(msg string, err error, details map[string]string) error {
+	if msg != "" {
+		if err != nil {
+			err = fmt.Errorf(msg, err)
+		} else {
+			err = errors.New(msg)
+		}
+	}
 	return &ClientError{
 		code:    CodeClientError,
 		details: details,

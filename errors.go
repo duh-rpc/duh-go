@@ -15,6 +15,7 @@ limitations under the License.
 package duh
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -23,19 +24,19 @@ import (
 )
 
 const (
-	CodeOK               = 200
-	CodeBadRequest       = 400
-	CodeUnauthorized     = 401
-	CodeForbidden        = 403
-	CodeNotFound         = 404
-	CodeConflict         = 409
-	CodeTooManyRequests  = 429
-	CodeClientError      = 452
-	CodeRequestFailed    = 453
-	CodeInternalError    = 500
-	CodeNotImplemented   = 501
-	CodeTransportError   = 512
-	CodeContentTypeError = 513
+	CodeOK                 = 200
+	CodeBadRequest         = 400
+	CodeUnauthorized       = 401
+	CodeForbidden          = 403
+	CodeNotFound           = 404
+	CodeConflict           = 409
+	CodeTooManyRequests    = 429
+	CodeClientError        = 452
+	CodeRequestFailed      = 453
+	CodeClientContentError = 454
+	CodeInternalError      = 500
+	CodeNotImplemented     = 501
+	CodeTransportError     = 512
 )
 
 func CodeText(code int) string {
@@ -64,8 +65,8 @@ func CodeText(code int) string {
 		return "Not Implemented"
 	case CodeTransportError:
 		return "Transport Error"
-	case CodeContentTypeError:
-		return "Content Type Error"
+	case CodeClientContentError:
+		return "Client Content Error"
 	default:
 		return http.StatusText(code)
 	}
@@ -75,7 +76,7 @@ func IsReplyCode(code int) bool {
 	switch code {
 	case CodeOK, CodeBadRequest, CodeUnauthorized, CodeRequestFailed, CodeForbidden,
 		CodeNotFound, CodeConflict, CodeClientError, CodeTooManyRequests, CodeInternalError,
-		CodeNotImplemented, CodeTransportError, CodeContentTypeError:
+		CodeNotImplemented, CodeTransportError, CodeClientContentError:
 		return true
 	}
 	return false
@@ -94,28 +95,34 @@ type Error interface {
 	Message() string
 }
 
-var _ Error = (*ServiceError)(nil)
+var _ Error = (*serviceError)(nil)
 var _ Error = (*ClientError)(nil)
 
-// TODO: Decide if this should be public or not, I'm leaning toward not being public
-type ServiceError struct {
+type serviceError struct {
 	details map[string]string
 	err     error
 	code    int
 }
 
-// NewServiceError returns a new ServiceError.
+// NewServiceError returns a new serviceError.
 // Server Implementations should use this to respond to requests with an error.
-// TODO: Ensure you can get the `cause` of the error from ServiceError struct
-func NewServiceError(code int, err error, details map[string]string) error {
-	return &ServiceError{
+// TODO: Ensure you can get the `cause` of the error from serviceError struct
+func NewServiceError(code int, msg string, err error, details map[string]string) error {
+	if msg != "" {
+		if err != nil {
+			err = fmt.Errorf(msg, err)
+		} else {
+			err = errors.New(msg)
+		}
+	}
+	return &serviceError{
 		details: details,
 		code:    code,
 		err:     err,
 	}
 }
 
-func (e *ServiceError) ProtoMessage() proto.Message {
+func (e *serviceError) ProtoMessage() proto.Message {
 	return &v1.Reply{
 		Message: func() string {
 			if e.err != nil {
@@ -123,24 +130,25 @@ func (e *ServiceError) ProtoMessage() proto.Message {
 			}
 			return ""
 		}(),
-		Code:    int32(e.code),
-		Details: e.details,
+		CodeText: CodeText(e.code),
+		Code:     int32(e.code),
+		Details:  e.details,
 	}
 }
 
-func (e *ServiceError) Code() int {
+func (e *serviceError) Code() int {
 	return e.code
 }
 
-func (e *ServiceError) Message() string {
+func (e *serviceError) Message() string {
 	return e.err.Error()
 }
 
-func (e *ServiceError) Error() string {
+func (e *serviceError) Error() string {
 	return CodeText(e.code) + ":" + e.err.Error()
 }
 
-func (e *ServiceError) Details() map[string]string {
+func (e *serviceError) Details() map[string]string {
 	return e.details
 }
 
@@ -158,9 +166,10 @@ func (e *ClientError) ProtoMessage() proto.Message {
 		e.msg = e.err.Error()
 	}
 	return &v1.Reply{
-		Code:    int32(e.code),
-		Details: e.details,
-		Message: e.msg,
+		CodeText: CodeText(e.code),
+		Code:     int32(e.code),
+		Details:  e.details,
+		Message:  e.msg,
 	}
 }
 

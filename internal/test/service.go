@@ -16,8 +16,6 @@ package test
 
 import (
 	"context"
-	"errors"
-
 	"github.com/duh-rpc/duh-go"
 )
 
@@ -35,7 +33,7 @@ type Service struct{}
 func (h *Service) TestErrors(ctx context.Context, req *ErrorsRequest) error {
 	switch req.Case {
 	case CaseServiceReturnedError:
-		return duh.NewServiceError(duh.CodeInternalError, errors.New("while reading the database: EOF"), nil)
+		return duh.NewServiceError(duh.CodeInternalError, "while reading the database: EOF", nil, nil)
 	}
 
 	return nil

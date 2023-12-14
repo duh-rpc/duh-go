@@ -345,7 +345,7 @@ have some resiliency built-in and retry depending on the error received. The req
 back off until the client determines the request took too long, or the client cancels the request.
 
 TODO: FINISH
-In order to support these characteristics, the service MUST reply with a well defined set of error replies which 
+In order to support these characteristics, the service MUST reply with a well-defined set of error replies which 
 the client can use to decide which operations should be retried and which should consistute a failure. Also,
 the service MUST differentiate it's replies with replies from the infrastructure so the client will know what is 
 appropriate to retry and what is not.
@@ -360,3 +360,42 @@ TODO: RateLimit responses (So clients can implement standard fall back and retry
 If you got this far, go look at the `demo/client.go` and `demo/service.go` for examples of how 
 to use this framework.
 
+# DEMO
+
+### Only POST is allowed
+`GET http://localhost:8080/v1/say.hello`
+```json
+{
+  "code": 400,
+  "codeText": "Bad Request",
+  "message": "http method 'GET' not allowed; only POST"
+}
+```
+
+### Missing a request body
+`POST http://localhost:8080/v1/say.hello`
+```json
+{
+  "code": 454,
+  "codeText": "Client Content Error",
+  "message": "proto: syntax error (line 1:1): unexpected token "
+}
+```
+
+### Validation error
+`POST http://localhost:8080/v1/say.hello {"name": ""}`
+```json
+ {
+  "code": 400,
+  "codeText": "Bad Request",
+  "message": "'name' is required and cannot be empty"
+}
+```
+
+### Successful Call
+`POST http://localhost:8080/v1/say.hello {"name": "John Wick"}`
+```json
+{
+    "message": "Hello, John Wick"
+}
+```
