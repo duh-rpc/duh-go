@@ -1,107 +1,95 @@
 > This README is a work in progress, and will likely be in a separate repo separating the spec from the
-> implementation. It should be refactored to focus on the high-level benefits of DUH instead of spending the first
-> half of the document GRPC bashing (I might have been angry) and then link to a separate document with the full spec.
+> implementation. 
 > 
 > PLEASE FEEL FREE TO OPEN A PR AND CORRECT OR ADD ANYTHING.
 
 # DUH-RPC - Duh, Use Http for RPC
+The goal of this project is not to duplicate GRPC or any other RPC style framework. It is in fact the opposite. It is an 
+attempt to evangelize Standard HTTP for RPC. To help share the knowledge that you can get or exceed GRPC performance and 
+consistency by simply using HTTP and following some basic rules and using a basic set of HTTP codes.
 
-Here we are presenting a standard approach for implementing RPC over HTTP. The benefit of using tried-and-true nature of HTTP
-for RPC allows designers to leverage the many tools and frameworks readily available to design, document, and implement
-high performance HTTP APIs without overly complex client or deployment strategies.
+We started this journey after we realized [GRPC was slower than HTTP/1]. Next, we wanted to know if we could
+gain the simplicity of an RPC framework, while exceeding performance and also reducing complexity. We realized, you
+don't need a fancy framework to build performant and scalable APIs. All you need are some best practices born out of 
+experience in building and scaling high-performance APIs that developers love.
 
-The goal of this spec is not to duplicate GRPC or to make GPRC better. It is in fact the opposite. It is an attempt to
-evangelize HTTP for RPC. To share the knowledge that you can get or exceed GRPC performance and consistency by 
-simply using HTTP.
+## What is DUH-RPC?
+The goal of this project isn't to create a new framework. The goal instead is to get developers thinking about WHY
+they might be reaching for an RPC style framework, when what they actually want is a basic definition of naming, retry,
+error and streaming semantics. This spec is an attempt to define those basic semantics which can be followed and
+audited using standard HTTP and OpenAPI tooling. 
 
-Many frame works have been proposed in an attempt to overcome or to compound the core problems with using GPRC. But 
-this is not one of those. You don't need a fancy framework to make performant and scalable APIs.
-
-The current list of GRPC or modified GRPC frameworks
-* https://dubbo.apache.org
-* [GRPC Web](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-WEB.md)
-* [DRPC](https://github.com/storj/drpc)
-
-## Why not GPRC?
-While GRPC has a lot going for it, there are a few aspects that nudged us toward a different direction. Firstly, it
-demands a language-specific framework, with service definitions in Protobuf. This can deter broad adoption, especially
-for software as a service-based companies who wish to have customers use their APIs. Also, large interdepartmental
-or business units have to create and provide APIs for integration and operation of their respective units. A strict 
-GRPC interface ecosystem is only viable within an organization which is completely committed to its adoption, and 
-has accepted that there will be one-off standard HTTP endpoints for external customers.
-
-### GRPC is not suitable for the Web
-As mentioned above, when adopting GRPC you accept that any public facing API's designed to be accessible via the WEB
-at scale cannot be GRPC. GRPC is useful only as an internal communication method to make calls between services.
-
-Much as been written about why GRPC is not suitable for the web, but the core rational is that GRPC uses sticky
-connections, and it prefers client side load balancing. Both of which make load balancing clients difficult by
-placing control in the hands of the client, not the API service provider.
-
-* [GRPC Weaknesses via Microsoft](https://learn.microsoft.com/en-us/aspnet/core/grpc/comparison?view=aspnetcore-8.0#grpc-weaknesses)
-* [When to avoid GRPC via Redhat](https://www.redhat.com/architect/when-to-avoid-grpc)
-* [GRPC-Web requires a proxy](https://blog.envoyproxy.io/envoy-and-grpc-web-a-fresh-new-alternative-to-rest-6504ce7eb880)
-* [GRPC Load Balancing via Microsoft](https://learn.microsoft.com/en-us/aspnet/core/grpc/performance?view=aspnetcore-8.0#load-balancing)
-
-### GPRC is complex and often Slow
-As you dive deeper into GRPC, you'll notice GRPC carries some baggage in the form of 
-[deprecated systems and a somewhat bloated structure](https://www.storj.io/blog/introducing-drpc-our-replacement-for-grpc),
-which can leave users scratching their heads on what's best to use and how. When performance suffers, it's not always 
-clear why GPRC is doing what it's doing. For instance, we ran into a strange performance issue when using streaming 
-which led us to discover that GRPC queue's requests once the concurrent number of streams has been hit. (Our only
-recourse was to re-design the system with the knowledge of GPRCs nonsensical limitations.)
-(See [GRPC Docs](https://grpc.io/docs/guides/performance/))
-
-With the proliferation of HTTP2, the gap of performance between GRPC and HTTP1 has been greatly and in many cases
-eclipsed by standard HTTP/2 implementation. Our own hands-on experiments showed that GRPC's heralded performance is 
-not as great as it used to be, especially in high-concurrency, low-latency scenarios. In fact, the entire reason this
-spec exists is the realization, that our standard HTTP services were outperforming our GRPC based services.
-
-See https://github.com/duh-rpc/duh-go-benchmarks for a comparison of DUH with GRPC in golang. (prepare yourself for a shock)
-
-### GRPC Gateway
-TODO: Talk about the downsides and performance issues we have experienced using GRPC gateway.
-* Multiple ports over loading the existing port
-* TLS connection to local gateway issues. (See Gubernator)
-
-## Why not REST?
-The main reason REST will always be slower than GRPC and DUH-RPC is due to REST requiring an HTTP Router for
-matching complex REST paths like `/v1/{thing}/collection/{id}/foo`. Both GRPC and DUH-RPC use simple string matching to
-connect an RPC method to a handler which results in unparalleled performance.
-
-RPC style API's also do not suffer from the hierarchical structure problems that rest APIs do. 
-(TODO: Write a blog post about this and link it here) or if you are at mailgun, read the 'HTTP and GRPC Design Guide'
-in the Mailgun wiki.
-
-## Why HTTP?
-* The widespread adoption of HTTP/2 has closed the gap in performance and features between other popular RPC style frameworks.
-* No need to adopt a framework that may or may not exist in your language.
-* You have access to an entire ecosystem of tools and services, IE: you can use CURL or GUI's to make API calls.
-* Payloads can be encoded in any format (Like ProtoBuf, BSON, Thrift, etc...)
-* You can use the same endpoints and frameworks for both private and public facing APIs, with no need to have separate 
-  tooling for each.
-
-### What's good about DUH-RPC?
-* Avoid the hierarchy problems that come with using REST best practices (See TODO above)
-* Any client that follows this spec can easily be adapted to your service.
-* Consistent Error Handling, no need to guess if you are doing it correctly
-* Consistent RPC method naming, no need to second guess where on the hierarchy you should place your operation.
-* The API can be interrogated from the command line with curl without the need for a special client.
-* The API can be inspected and called from GUI clients like [Postman](https://www.postman.com/), 
-  or [hoppscotch](https://github.com/hoppscotch/hoppscotch)
-* Use standard schema linting tools and OpenAPI-based services for integration and compliance testing of API's
-* Design, deploy and generate documentation for your API using standard Open API tools
-* Use your favorite web frameworks in your favorite language.
-* Consistent client interfaces allow for a set of standard tooling to be built to support common use cases. 
-  Like `retry` and authentication.
+This repo includes a simple implementation of the DUH-RPC spec in golang to illustrate how easy it is to create a high
+performance and scalable RPC style service by following the DUH-RPC spec.
 
 DUH-RPC design is intended to be 100% compatible with OpenAPI tooling, Linters and Governance tooling to aid in the 
 development of APIs Without compromising on Error Handling Consistency, Performance or Scalability.
 
-# DUH Implementation
-TODO: Write some gentle introduction here instead of dropping right into the spec. Give some examples and responses
-provide some examples of handling errors and such so people can visually see what this is all about. Also discuss
-the separation of infra and service implementation. With DUH it is always clear to the client that the error
+# DUH Examples
+### Successful Call
+`POST http://localhost:8080/v1/say.hello {"name": "John Wick"}`
+```json
+{
+    "message": "Hello, John Wick"
+}
+```
+TODO MORE EXAMPLES HERE
+
+### What's good about DUH-RPC?
+* Avoid the hierarchy problem that come with using REST best practices.
+* Any client that follows this spec can easily be adapted to your service or API.
+* Consistent Error Handling, which allows libraries and frameworks to handle errors uniformly.
+* Consistent RPC method naming, no need to second guess where in the hierarchy the operation should exist.
+* Keeps the good parts of REST. Stateless, Cachable, Intermediates, Security
+* The API can be interrogated from the command line via curl without the need for a special client.
+* The API can be inspected and called from GUI clients like [Postman](https://www.postman.com/),
+  or [hoppscotch](https://github.com/hoppscotch/hoppscotch)
+* Use standard schema linting tools and OpenAPI-based services for integration and compliance testing of APIs
+* Design, deploy and generate documentation for your API using standard Open API tools
+* Use your favorite web frameworks in your favorite language.
+* Consistent client interfaces allow for a set of standard tooling to be built to support common use cases.
+  Like `retry` and authentication.
+* Payloads can be encoded in any format (Like ProtoBuf, MessagePack, Thrift, etc...)
+* Standard Streaming semantics (FUTURE WORK)
+* You can use the same endpoints and frameworks for both private and public facing APIs, with no need to have separate
+  tooling for each.
+
+## When is DUH-RPC not appropriate?
+DUH-RPC, like most RPC APIs, is mostly intended for service to service communication. It doesn't make sense to use
+DUH-RPC if your intended use case is in a browser when users are sharing links to be clicked.
+
+IE: https://www.google.com/search?q=rpc+api
+
+## Why not GRPC?
+Like DUH, GRPC has consistent semantics like flow control, request cancellation, and error handling. However, it is not without
+its issues.
+* GRPC is more complex than is necessary for high-performance, distributed environments.
+* GRPC implementations can be slower than expected (Slower than standard HTTP)
+* Using GRPC can result in more code than using standard HTTP
+* GRPC is not suitable for the public Web based APIs
+
+For a deeper dive and benchmarks of GRPC with standard HTTP in golang See [Why not GRPC](why-not-grpc.md)
+
+## Why not REST?
+Many who embrace RPC style frameworks do so because they are fleeing REST either because of the simple semantics of RPC
+or for performance reasons. In our experience REST is suboptimal for a few reasons.
+* The hierarchical nature of REST does not lend itself to clean interfaces over time.
+* REST performance will always be slower than RPC
+* No standard error semantics
+* No standard streaming semantics
+* No standard rate limit or retry semantics
+
+For a deeper dive on REST See [Why not REST](why-not-rest.md)
+
+# DUH Spec
+> This spec is a work in progress and is not an exhaustive set of DO's and DON'Ts. If you have a suggestion, please
+> consider opening a PR to help contribute to the spec.
+
+Here we are presenting a standard approach for implementing RPC over HTTP. The benefit of using tried-and-true nature of HTTP
+for RPC allows designers to leverage the many tools and frameworks readily available to design, document, and implement
+high-performance HTTP APIs without overly complex client or deployment strategies.
+
+TODO: discuss the separation of infra and service implementation. With DUH it is always clear to the client that the error
 came from either infra, or the service. (unlike regular HTTP where you are not sure where the 404 came from)
 
 DUH method calls take the form `/v1/my/endpoint.method`
@@ -115,7 +103,7 @@ any other HTTP verb other than POST.
 > there is no payload on GET and will not allow you to read the payload.
 
 The name of the RPC method should be in the standard HTTP path such that it can be easily versioned and routed by 
-standard HTTP handling frameworks, using the form `/<version>/<domain>.<action>`
+standard HTTP handling frameworks, using the form `/<version>/<subject>.<action>`
 
 CRUD Examples
 * `/v1/users.create`
@@ -230,14 +218,14 @@ defined above.
 | 200           | OK                   | N/A   | Everything is fine                                                                    |
 | 400           | Bad Request          | False | Server reports missing a required parameter, or malformed request object              |
 | 401           | Unauthorized         | False | Not Authenticated, Who are you?  (AuthN)                                              |
-| 402           | Request Failed       | False | Request is valid, but failed. If no other code makes sense, use this one              |
 | 403           | Forbidden            | False | You can't access this thing, it either doesn't exist, or you don't have authorization |
+| 404           | Not Found            | False | The thing you where looking for was not found                                         |
 | 409           | Conflict             | False | The request conflicts with another request                                            |
-| 428           | Client Error         | False | The client returned an error without sending the request to the server                |
 | 429           | Too Many Requests    | True  | Stop abusing our service. (See Standard RateLimit Responses)                          |
+| 452           | Client Error         | False | The client returned an error without sending the request to the server                |
+| 453           | Request Failed       | False | Request is valid, but failed. If no other code makes sense, use this one              |
 | 500           | Internal Error       | True  | Something with our server happened that is out of our control                         |
 | 501           | Not Implemented      | False | The method requested is not implemented on this server                                |
-| 502, 503, 504 | Infrastructure Error | True  | Something is wrong with the infrastructure                                            |
 
 >  Most Standard HTTP Clients will handle 1xx and 3xx class errors, so it's not something you should need to worry about.
 
@@ -295,13 +283,30 @@ For example, if the client implementation receives an HTTP status code of `404` 
 from the request, the client SHOULD assume the error is from the infrastructure and inform the caller in a way that 
 is suitable for the language used.
 
+### Infrastructure Errors
+An infrastructure error is any HTTP response code that is NOT 200 and DOES NOT include a `Reply` structure in the body.
+If the client receives a response code and it DOES NOT include a `Reply` structure in the expected serialization format,
+then the client MUST consider the response as an infrastructure error and handling it accordingly.
+
+Typically, infrastructure errors are 5XX class errors, but could also be 404 Not Found errors, or consist of 
+non-standard or future HTTP status codes. As such it is recommended that client implementations do not attempt to 
+handle all possible HTTP codes, but instead consider any non 200 responses without a `Reply` an infrastructure class
+error.
+
 ##### Service Identifiers
 In addition, the server CAN include the `Server: DUH-RPC/1.0 (Golang)` header according to [RFC9110](https://www.rfc-editor.org/rfc/rfc9110#field.server) to help
-identify the source of the HTTP Status. (It is possible that proxy or API gateways will scrub or over write this 
+identify the source of the HTTP Status. (It is possible that proxy or API gateways will scrub or overwrite this 
 header as a security measure, which will make identification of the source more difficult) 
 
 ### RPC Call Semantics
 An RPC call or request over the network has the following semantics
+
+### CRUD Semantics
+Similar to REST semantics
+`/subject.get` always returns data and does not cause side effects.
+`/subject.create` creates a thing and can return the data it just created
+`/subject.update` updates an existing resource
+`/subject.delete` deletes an existing resource
 
 ##### Request reached service and the client received a response
 The response from the service could be good or bad. The point is that were no interruptions occurred in order to 
@@ -327,8 +332,8 @@ The request could have been cancelled by
 * Service shutdown during processing
 * Catastrophic Failure of the server or service
 
-##### Request is cancelled by the caller
-The request timed out waiting for a reply or the caller requested a cancel of the request while in flight.
+##### The caller cancels the request
+The request timed out waiting for a reply, or the caller requested a cancel of the request while in flight.
 
 ##### Request was denied by infrastructure
 The infrastructure attempted to connect the request with a service, but was denied
@@ -354,7 +359,7 @@ TODO: Not Found infra vs Not Found service, might mean we retry.
 
 TODO: Streams
 
-TODO: RateLimit responses (So clients can implement standard fall back and retry mechanisms.)
+TODO: RateLimit responses (So clients can implement and retry mechanisms)
 
 ### FIN
 If you got this far, go look at the `demo/client.go` and `demo/service.go` for examples of how 
@@ -392,10 +397,12 @@ to use this framework.
 }
 ```
 
-### Successful Call
-`POST http://localhost:8080/v1/say.hello {"name": "John Wick"}`
-```json
-{
-    "message": "Hello, John Wick"
-}
-```
+
+
+## Existing RPC Options
+There are already plenty of frameworks to choose from.
+* GPRC
+* https://dubbo.apache.org
+* [GRPC Web](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-WEB.md)
+* [DRPC](https://github.com/storj/drpc)
+

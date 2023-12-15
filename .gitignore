@@ -5,3 +5,4 @@ __pycache__
 gubernator.egg-info/
 .venv*/
 .DS_Store
+.obsidian/
