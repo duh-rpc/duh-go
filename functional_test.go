@@ -113,7 +113,7 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name:    "fail to create send request",
-			error:   "Client Error: Post \"/v1/test.errors\": unsupported protocol scheme \"\"",
+			error:   "Client Error: during client.Do(): Post \"/v1/test.errors\": unsupported protocol scheme \"\"",
 			details: map[string]string{"http.method": "POST", "http.url": "/v1/test.errors"},
 			conf:    test.ClientConfig{Endpoint: ""},
 			req:     &test.ErrorsRequest{},
@@ -121,7 +121,7 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name: "fail to create request",
-			error: fmt.Sprintf("Client Error: Post \"%s/v1/test.errors\": http: RoundTripper "+
+			error: fmt.Sprintf("Client Error: during client.Do(): Post \"%s/v1/test.errors\": http: RoundTripper "+
 				"implementation (*duh_test.badTransport) "+"returned a nil *Response with a nil error", server.URL),
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),

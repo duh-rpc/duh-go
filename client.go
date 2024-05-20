@@ -111,7 +111,7 @@ func (c *Client) Do(req *http.Request, out proto.Message) error {
 	// Preform the HTTP call
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return NewClientError("", err, map[string]string{
+		return NewClientError("during client.Do(): %w", err, map[string]string{
 			DetailsHttpUrl:    req.URL.String(),
 			DetailsHttpMethod: req.Method,
 		})
@@ -122,7 +122,7 @@ func (c *Client) Do(req *http.Request, out proto.Message) error {
 	// Copy the response into a buffer
 	if _, err = io.Copy(&body, resp.Body); err != nil {
 		return &ClientError{
-			err: fmt.Errorf("while reading response body: %v", err),
+			err: fmt.Errorf("while reading response body: %w", err),
 			details: map[string]string{
 				DetailsHttpUrl:    req.URL.String(),
 				DetailsHttpMethod: req.Method,
