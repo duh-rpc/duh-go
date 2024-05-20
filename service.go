@@ -18,14 +18,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
-	"sync"
-
 	v1 "github.com/duh-rpc/duh-go/proto/v1"
 	json "google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"io"
+	"net/http"
+	"strings"
 )
 
 const (
@@ -37,20 +35,16 @@ const (
 
 var (
 	SupportedMimeTypes = []string{ContentTypeJSON, ContentTypeProtoBuf}
-	memory             = sync.Pool{
-		New: func() interface{} { return bytes.NewBuffer(make([]byte, 2048)) },
-	}
 )
 
 // ReadRequest reads the given http.Request body []byte into the given proto.Message.
 // The provided message must be mutable (e.g., a non-nil pointer to a message).
 // It also handles content negotiation via the 'Content-Type' header provided in the http.Request headers
 func ReadRequest(r *http.Request, m proto.Message) error {
-	b := memory.Get().(*bytes.Buffer)
-	defer memory.Put(b)
-	b.Reset()
+	defer func() { _ = r.Body.Close() }()
 
-	_, err := io.Copy(b, r.Body)
+	var b bytes.Buffer
+	_, err := io.Copy(&b, r.Body)
 	if err != nil {
 		return NewServiceError(CodeTransportError, "", err, nil)
 	}

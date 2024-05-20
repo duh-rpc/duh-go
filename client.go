@@ -118,12 +118,9 @@ func (c *Client) Do(req *http.Request, out proto.Message) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body := memory.Get().(*bytes.Buffer)
-	body.Reset()
-	defer memory.Put(body)
-
+	var body bytes.Buffer
 	// Copy the response into a buffer
-	if _, err = io.Copy(body, resp.Body); err != nil {
+	if _, err = io.Copy(&body, resp.Body); err != nil {
 		return &ClientError{
 			err: fmt.Errorf("while reading response body: %v", err),
 			details: map[string]string{
