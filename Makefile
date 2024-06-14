@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := run
 GOLANGCI_LINT = $(GOPATH)/bin/golangci-lint
-GOLANGCI_LINT_VERSION = v1.55.2
+GOLANGCI_LINT_VERSION = 1.56.2
 
 .PHONY: test
 test:
@@ -15,12 +15,21 @@ proto:
 run:
 	go run -race cmd/demo/main.go
 
-$(GOLANGCI_LINT):
+$(GOLANGCI_LINT): ## Download Go linter
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin $(GOLANGCI_LINT_VERSION)
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT)
-	$(GOLANGCI_LINT) run
+lint: $(GOLANGCI_LINT) ## Run Go linter
+	$(GOLANGCI_LINT) run -v ./...
+
+.PHONY: tidy
+tidy:
+	go mod tidy && git diff --exit-code
+
+.PHONY: validate
+validate: tidy lint test
+	@echo
+	@echo "\033[32mEVERYTHING PASSED!\033[0m"
 
 .PHONY: certs
 certs: ## Generate SSL certificates
