@@ -27,8 +27,6 @@ import (
 	"time"
 
 	"github.com/duh-rpc/duh-go/demo"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 type config struct {
@@ -66,12 +64,8 @@ func main() {
 	// Create a new instance of our service
 	service := demo.NewService()
 
-	// Support H2C (HTTP/2 ClearText)
-	// See https://github.com/thrawn01/h2c-golang-example
-	h2s := &http2.Server{}
-
 	server := &http.Server{
-		Handler: h2c.NewHandler(&demo.Handler{Service: service}, h2s),
+		Handler: &demo.Handler{Service: service},
 		Addr:    c.Address,
 	}
 
