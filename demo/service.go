@@ -28,11 +28,17 @@ func NewService() *Service {
 	return &Service{}
 }
 
+// TODO: Define abstracted errors here
+// ErrInternal
+// ErrBadRequest
+// ErrRequestFailed
+
 // Service is an example of a production ready service implementation
 type Service struct{}
 
 func (h *Service) SayHello(ctx context.Context, req *SayHelloRequest, resp *SayHelloResponse) error {
 	if req.Name == "" {
+		// TODO: This needs to be an internal error, and the caller should instead convert to a NewServiceError
 		return duh.NewServiceError(duh.CodeBadRequest, "'name' is required and cannot be empty", nil, nil)
 	}
 	if cases.Title(language.English).String(req.Name) != req.Name {
