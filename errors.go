@@ -33,7 +33,8 @@ const (
 	CodeTooManyRequests    = 429
 	CodeClientError        = 452
 	CodeRequestFailed      = 453
-	CodeClientContentError = 454
+	CodeRetryRequest       = 454
+	CodeClientContentError = 455
 	CodeInternalError      = 500
 	CodeNotImplemented     = 501
 	CodeTransportError     = 512
@@ -49,6 +50,8 @@ func CodeText(code int) string {
 		return "Unauthorized"
 	case CodeRequestFailed:
 		return "Request Failed"
+	case CodeRetryRequest:
+		return "Retry Request"
 	case CodeForbidden:
 		return "Forbidden"
 	case CodeNotFound:
@@ -72,11 +75,11 @@ func CodeText(code int) string {
 	}
 }
 
-func IsReplyCode(code int) bool {
+func IsDUHCode(code int) bool {
 	switch code {
 	case CodeOK, CodeBadRequest, CodeUnauthorized, CodeRequestFailed, CodeForbidden,
 		CodeNotFound, CodeConflict, CodeClientError, CodeTooManyRequests, CodeInternalError,
-		CodeNotImplemented, CodeTransportError, CodeClientContentError:
+		CodeNotImplemented, CodeTransportError, CodeClientContentError, CodeRetryRequest:
 		return true
 	}
 	return false

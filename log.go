@@ -39,7 +39,7 @@ var _ io.WriteCloser = &HttpLogAdaptor{}
 // NewHttpLogAdaptor creates a new adaptor suitable for forwarding logging from ErrorLog to a standard logger
 //
 //		srv := &http.Server{
-//			ErrorLog:  log.New(duh.NewHttpLogAdaptor(slog.New(), "", 0),
+//			ErrorLog:  log.New(duh.NewHttpLogAdaptor(slog.Default(), "", 0),
 //			Addr:      "localhost:8080",
 //	     .....
 //		}

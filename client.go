@@ -134,7 +134,7 @@ func (c *Client) Do(req *http.Request, out proto.Message) error {
 
 	// If we get a code that is not a known DUH code, then don't attempt to un-marshal,
 	// instead read the body and return an error
-	if !IsReplyCode(resp.StatusCode) {
+	if !IsDUHCode(resp.StatusCode) {
 		return NewInfraError(req, resp, body.Bytes())
 	}
 

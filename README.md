@@ -36,33 +36,29 @@ development of APIs Without compromising on Error Handling Consistency, Performa
 TODO MORE EXAMPLES HERE
 
 ### What's good about DUH-RPC?
-* Avoid the hierarchy problem that come with using REST best practices.
-* Any client that follows this spec can easily be adapted to your service or API.
 * Consistent Error Handling, which allows libraries and frameworks to handle errors uniformly.
 * Consistent RPC method naming, no need to second guess where in the hierarchy the operation should exist.
+* You can use the same endpoints and frameworks for both private and public facing APIs, with no need to have separate
+  tooling for each.
 * Keeps the good parts of REST. Stateless, Cachable, Intermediates, Security
 * The API can be interrogated from the command line via curl without the need for a special client.
 * The API can be inspected and called from GUI clients like [Postman](https://www.postman.com/),
   or [hoppscotch](https://github.com/hoppscotch/hoppscotch)
 * Use standard schema linting tools and OpenAPI-based services for integration and compliance testing of APIs
-* Design, deploy and generate documentation for your API using standard Open API tools
-* Use your favorite web frameworks in your favorite language.
+* Design, deploy and generate documentation for your API using standard OpenAPI tools
 * Consistent client interfaces allow for a set of standard tooling to be built to support common use cases.
   Like `retry` and authentication.
 * Payloads can be encoded in any format (Like ProtoBuf, MessagePack, Thrift, etc...)
-* Standard Streaming semantics (FUTURE WORK)
-* You can use the same endpoints and frameworks for both private and public facing APIs, with no need to have separate
-  tooling for each.
 
 ## When is DUH-RPC not appropriate?
-DUH-RPC, like most RPC APIs, is mostly intended for service to service communication. It doesn't make sense to use
-DUH-RPC if your intended use case is in a browser when users are sharing links to be clicked.
+DUH-RPC, like most RPC APIs, is intended for service to service communication. It doesn't make sense to use
+DUH-RPC if your intended use case is users sharing links to be clicked.
 
 IE: https://www.google.com/search?q=rpc+api
 
 ## Why not GRPC?
-Like DUH, GRPC has consistent semantics like flow control, request cancellation, and error handling. However, it is not without
-its issues.
+Like DUH, GRPC has consistent semantics like flow control, request cancellation, and error handling. However, it is
+not without its own issues.
 * GRPC is more complex than is necessary for high-performance, distributed environments.
 * GRPC implementations can be slower than expected (Slower than standard HTTP)
 * Using GRPC can result in more code than using standard HTTP
@@ -71,8 +67,8 @@ its issues.
 For a deeper dive and benchmarks of GRPC with standard HTTP in golang See [Why not GRPC](why-not-grpc.md)
 
 ## Why not REST?
-Many who embrace RPC style frameworks do so because they are fleeing REST either because of the simple semantics of RPC
-or for performance reasons. In our experience REST is suboptimal for a few reasons.
+Many who embrace RPC style frameworks do so because they are fleeing REST either because of the simple semantics
+of RPC or for performance reasons. In our experience REST is suboptimal for a few reasons.
 * The hierarchical nature of REST does not lend itself to clean interfaces over time.
 * REST performance will always be slower than RPC
 * No standard error semantics
@@ -92,7 +88,7 @@ high-performance HTTP APIs without overly complex client or deployment strategie
 TODO: discuss the separation of infra and service implementation. With DUH it is always clear to the client that the error
 came from either infra, or the service. (unlike regular HTTP where you are not sure where the 404 came from)
 
-DUH method calls take the form `/v1/my/endpoint.method`
+DUH method calls take the form `/v1/problem-domain/subject.method`
 
 ### Requests
 All requests SHOULD use the POST verb with an in body request object describing the arguments of the RPC request.
@@ -115,13 +111,13 @@ Methods SHOULD always reference the thing they are acting upon
 * `/v1/dogs.pet`
 * `/v1/dogs.feed`
 
-If Methods do not act upon a collection, then you should indicate the problem domain the method is acting on
+If Methods do not act upon a collection, then you should indicate the subject the method is acting on
 * `/v1/messages.send`
 * `/v1/trash.clear`
 * `/v1/kiss.give`
 
-Naming it `/v1/kiss.give` instead of just `/v1/kiss` is an important future proofing action. In the case you want to
-add other methods to `/v1/kiss` you have a consistent API. For instance if you only had `/v1/kiss` then when you 
+Naming it `/v1/kiss.give` instead of just `/v1/kiss` is an important future proofing action. In case you want to
+add other methods to `/v1/kiss`, you have a consistent API. For instance if you only had `/v1/kiss` then when you 
 wanted to add the ability to `blow` a kiss, your api would look like
 
 * `/v1/kiss` - Create a Kiss
@@ -133,8 +129,8 @@ Instead of the more consistent
 
 ### Subject before Noun or Action
 You may have noticed that every endpoint has the subject before the action. This is intentional and is useful for 
-future proofing your API such that you may want to add more actions in the future. Just remember, if in doubt, design
-your API like Yoda would speak.
+future proofing your API when you add more actions in the future. Just remember, if in doubt, design your API like
+Yoda would speak.
 
 ### Versioning
 DUH-RPC calls employ standard HTTP paths to make RPC calls. This approach makes versioning those methods easy and direct.
@@ -157,7 +153,7 @@ headers. However, since this is HTTP, service Implementors are free to add suppo
 
 #### Content-Type and Accept Headers
 Clients SHOULD NOT specify any mime type parameters as specified in RFC2046.  Any parameters after `;` in the provided
-content type will be ignored by the server.
+content type CAN be ignored by the server.
 
 The Content Type is expected to be specified in the following format, omitting any mime type parameters like
 `;charset=utf-8` or `;q=0.9`.
@@ -186,6 +182,9 @@ Accept header 'application/bson' is invalid format or unrecognized content type,
 
 > Server MUST ALWAYS support JSON, if no other content type can be negotiated, then the server will always respond with JSON.
 
+The reason we simplify Content-Type handling here is so servers with high performance requirements or tight resource
+constraints can support the DUH-RPC spec without needing to support every edge case RFC for HTTP.
+
 ## Replies
 Standard replies from the service SHOULD follow a common structure. This provides a consistent and simple method for 
 clients to reply with errors and messages.
@@ -213,44 +212,58 @@ Status code is NOT `200`.
 Service Implementations SHOULD only return the following standard HTTP Status codes along with the **Reply** structure 
 defined above.
 
-| Code          | Short                | Retry | Long                                                                                  |
-| ------------- | -------------------- | ----- | ------------------------------------------------------------------------------------- |
-| 200           | OK                   | N/A   | Everything is fine                                                                    |
-| 400           | Bad Request          | False | Server reports missing a required parameter, or malformed request object              |
-| 401           | Unauthorized         | False | Not Authenticated, Who are you?  (AuthN)                                              |
-| 403           | Forbidden            | False | You can't access this thing, it either doesn't exist, or you don't have authorization |
-| 404           | Not Found            | False | The thing you where looking for was not found                                         |
-| 409           | Conflict             | False | The request conflicts with another request                                            |
-| 429           | Too Many Requests    | True  | Stop abusing our service. (See Standard RateLimit Responses)                          |
-| 452           | Client Error         | False | The client returned an error without sending the request to the server                |
-| 453           | Request Failed       | False | Request is valid, but failed. If no other code makes sense, use this one              |
-| 500           | Internal Error       | True  | Something with our server happened that is out of our control                         |
-| 501           | Not Implemented      | False | The method requested is not implemented on this server                                |
+| Code | Short                | Retry | Long                                                                              |
+|------|----------------------|-------|-----------------------------------------------------------------------------------|
+| 200  | OK                   | N/A   | Everything is fine                                                                |
+| 400  | Bad Request          | False | Client is missing a required parameter, or value provided is invalid              |
+| 401  | Unauthorized         | False | Not Authenticated, Who are you?  (AuthN)                                          |
+| 403  | Forbidden            | False | You can't access this thing, or you don't have authorization (AuthZ)              |
+| 404  | Not Found            | False | The thing you where looking for was not found                                     |
+| 409  | Conflict             | False | This request conflicts with another request                                       |
+| 429  | Too Many Requests    | True  | Stop abusing our service. (See Standard RateLimit Responses)                      |
+| 452  | Client Error         | False | The client returned an error without sending the request to the server            |
+| 453  | Request Failed       | False | Request is valid, but failed. If no other code makes sense, use this one          |
+| 454  | Retry Request        | True  | Request is valid, but service asks the client to try again.                       |
+| 455  | Client Content Error | False | Something about the content the client provided is wrong (Not following DUH spec) |
+| 500  | Internal Error       | True  | Something with our server happened that is out of our control                     |
+| 501  | Not Implemented      | False | The method requested is not implemented on this server                            |
 
->  Most Standard HTTP Clients will handle 1xx and 3xx class errors, so it's not something you should need to worry about.
+>  Most Standard HTTP Clients will handle 1xx and 3xx class errors, so we don't include those here.
+
+###### Service HTTP Codes
+When you break it down by what implementation should is responsible for what http code, it breaks down like this.
+
+Service Implementation - 200, 400, 404, 409, 453, 454, 500
+DUH-RPC Implementation - 455, 501
+AuthZ/AuthN Implementation - 401, 403
+RateLimit Implementation - 429
+
+> TODO: Consider removing 501, it would likely be more appropriate to return `400 - Not Implemented`. This error isn't 
+a server issue, but likely that the client attempted to access a method which does not exist.
 
 #### Errors and Codes
-HTTP Status Codes should NOT be expanded for your specific use case. Instead server implementations should add their
+HTTP Status Codes should NOT be expanded for your specific use case. Instead, server implementations should add their
 own custom fields and codes in the standard `v1.Reply.Details` map.
 
 For example, a credit card processing company needs to return card processing errors. The recommended path would be to
 add those `details` to the standard error.
 ```json
 {
-	"code": 402,
-	"message": "Credit Card was declined",
-	"details": {
-		"type": "card_error",
-		"decline_code": "expired_card",
-		"doc": "https://credit.com/docs/card_errors#expired_card"
-	}
+    "code": 453,
+    "message": "Credit Card was declined",
+    "details": {
+        "type": "card_error",
+        "code": "466",
+        "decline_code": "expired_card",
+        "doc": "https://credit.com/docs/card_errors#expired_card"
+    }
 }
 ```
 It is NOT recommended to add your own custom fields to the **Reply** structure. This approach would require clients to
 use a non-standard structure. For example, the following is not recommended.
 ```json
 {
-	"code": 402,
+	"code": 453,
 	"message": "Credit Card was declined",
 	"error": {
 		"description": "expired_card",
@@ -265,13 +278,14 @@ use a non-standard structure. For example, the following is not recommended.
 	}
 }
 ```
+
 #### Handling HTTP Errors
-All Server responses MUST ALWAYS return JSON if no other content type is specified. It WILL NOT return `text/plain`. 
+All Server responses MUST ALWAYS return JSON if no other content type is specified. The server WILL NOT return `text/plain`. 
 This includes any and all router based errors like `Method Not Allowed` or `Not Found` if the route requested is not
 found. This is because ambiguity exists between a route not found on the service, and a `Not Found` route at the API
 gateway or Load Balancer.
 
-The server should always respond with a standard **Reply** structure which differentiates it's responses from any 
+The server should always respond with a standard **Reply** structure which differentiates its responses from any 
 infrastructure that lies between the service and the client.
 
 The Client SHOULD handle responses that do not include the **Reply** structure and differentiate those responses to
@@ -298,7 +312,7 @@ In addition, the server CAN include the `Server: DUH-RPC/1.0 (Golang)` header ac
 identify the source of the HTTP Status. (It is possible that proxy or API gateways will scrub or overwrite this 
 header as a security measure, which will make identification of the source more difficult) 
 
-### RPC Call Semantics
+## RPC Call Semantics
 An RPC call or request over the network has the following semantics
 
 ### CRUD Semantics
@@ -309,8 +323,8 @@ Similar to REST semantics
 `/subject.delete` deletes an existing resource
 
 ##### Request reached service and the client received a response
-The response from the service could be good or bad. The point is that were no interruptions occurred in order to 
-impede the request from reaching the service which handles the request.
+The response from the service could be good or bad. No interruptions occurred that would have 
+impeded the request from reaching the service which handles the request.
 
 ##### Request was rejected
 The request could be rejected by the service or infrastructure for various reasons.
@@ -322,7 +336,7 @@ The request could be rejected by the service or infrastructure for various reaso
 * Not Authorized
 
 #### Request timed out
-The request could have timed out by the infrastructure, client or service for various reasons.
+The request could have timed due to some infrastructure issue or some client or service saturation event.
 * Upstream service timeout (DB or other service timeout)
 * TCP idle timeout rule (proxy or firewall)
 * 502 Gateway Timeout
@@ -345,13 +359,13 @@ The infrastructure attempted to connect the request with a service, but was deni
 Based on the above possible outcomes we can infer that an RPC client should have the following characteristics.
 
 ##### Unary RPC Requests should be retried until canceled
-Because a request could timeout, be rejected, be canceled, and denied for transient reasons, the client should
+Because a request could time out, be rejected, canceled, or denied for transient reasons, the client should
 have some resiliency built-in and retry depending on the error received. The request should continue to retry with 
 back off until the client determines the request took too long, or the client cancels the request.
 
 TODO: FINISH
 In order to support these characteristics, the service MUST reply with a well-defined set of error replies which 
-the client can use to decide which operations should be retried and which should consistute a failure. Also,
+the client can use to decide which operations should be retried and which should constitute a failure. Also,
 the service MUST differentiate it's replies with replies from the infrastructure so the client will know what is 
 appropriate to retry and what is not.
 
@@ -359,11 +373,10 @@ TODO: Not Found infra vs Not Found service, might mean we retry.
 
 TODO: Streams
 
-TODO: RateLimit responses (So clients can implement and retry mechanisms)
+TODO: RateLimit responses (So clients can implement consistent retry mechanisms)
 
 ### FIN
-If you got this far, go look at the `demo/client.go` and `demo/service.go` for examples of how 
-to use this framework.
+If you got this far, go look at the `demo/client.go` and `demo/service.go` for examples of an implementation in golang.
 
 # DEMO
 
