@@ -89,8 +89,8 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name: "method not implemented",
-			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Not Implemented' "+
-				"and message 'no such method; /v1/test.errors'", server.URL),
+			error: fmt.Sprintf("POST %s/v1/test.errors returned 'Not Implemented' "+
+				"with message: no such method; /v1/test.errors", server.URL),
 			msg: "no such method; /v1/test.errors",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
@@ -104,7 +104,7 @@ func TestClientErrors(t *testing.T) {
 		{
 			name: "infrastructure error",
 			error: fmt.Sprintf("POST %s/v1/test.errors returned infrastructure error "+
-				"'404' with body 'Not Found'", server.URL),
+				"404 with body: Not Found", server.URL),
 			msg: "Not Found",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
@@ -117,8 +117,8 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name: "service returned an error",
-			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Internal Service Error' "+
-				"and message 'while reading the database: EOF'", server.URL),
+			error: fmt.Sprintf("POST %s/v1/test.errors returned 'Internal Service Error' "+
+				"with message: while reading the database: EOF", server.URL),
 			msg: "while reading the database: EOF",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),
@@ -131,8 +131,8 @@ func TestClientErrors(t *testing.T) {
 		},
 		{
 			name: "service returned client content error",
-			error: fmt.Sprintf("POST %s/v1/test.errors returned code 'Client Content Error' "+
-				"and message 'proto:", server.URL),
+			error: fmt.Sprintf("POST %s/v1/test.errors returned 'Client Content Error' "+
+				"with message: proto:", server.URL),
 			msg: "proto:",
 			details: map[string]string{
 				duh.DetailsHttpUrl:    fmt.Sprintf("%s/v1/test.errors", server.URL),

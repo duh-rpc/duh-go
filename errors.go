@@ -192,7 +192,7 @@ func (e *ClientError) Error() string {
 
 	// This means the reply is not from the service, but from the infrastructure.
 	if e.isInfraError {
-		return fmt.Sprintf("%s %s returned infrastructure error '%d' with body '%s'",
+		return fmt.Sprintf("%s %s returned infrastructure error %d with body: %s",
 			e.details[DetailsHttpMethod],
 			e.details[DetailsHttpUrl],
 			e.code,
@@ -200,7 +200,7 @@ func (e *ClientError) Error() string {
 		)
 	}
 	// Error is from the service
-	return fmt.Sprintf("%s %s returned code '%s' and message '%s'",
+	return fmt.Sprintf("%s %s returned '%s' with message: %s",
 		e.details[DetailsHttpMethod],
 		e.details[DetailsHttpUrl],
 		CodeText(e.code),
