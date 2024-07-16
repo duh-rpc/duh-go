@@ -16,77 +16,169 @@ package retry_test
 
 import (
 	"context"
-	"time"
-
+	"errors"
+	"github.com/duh-rpc/duh-go"
 	"github.com/duh-rpc/duh-go/retry"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"math"
+	"sync"
+	"testing"
+	"time"
 )
 
 type DoThingRequest struct{}
 type DoThingResponse struct{}
 
-type Client struct{}
+type Client struct {
+	Err      error
+	Attempts int
+}
 
 func (c *Client) DoThing(ctx context.Context, r *DoThingRequest, resp *DoThingResponse) error {
-	return nil
+	if c.Attempts == 0 {
+		return nil
+	}
+	c.Attempts--
+	return c.Err
 }
 
 func NewClient() *Client {
 	return &Client{}
 }
 
-func ExampleOn() {
+func TestRetry(t *testing.T) {
 	c := NewClient()
 	var resp DoThingResponse
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// --- Retryable errors are ---
-	// 409 - Conflict
+	// 454 - Retry Request
 	// 429 - Too Many Requests (Will calculate the appropriate interval to retry based on the response)
 	// 500 - Internal Error (Hopefully this is a temporary error, and the server will recover)
 	// 502,503,504 - Infrastructure errors which hopefully will resolve on retry.
 
-	// `retry.Twice` is the policy that governs when to retry.
-	// The `retry.Twice` policy will retry 'twice' if the server responded with one of the following retryable errors
-	// The `retry.Twice` uses the default back off policy
-	_ = retry.On(ctx, retry.Twice, func(ctx context.Context, attempt int) error {
-		return c.DoThing(ctx, &DoThingRequest{}, &resp)
+	c.Err = errors.New("error")
+	c.Attempts = 10
+	var count int
+
+	t.Run("Twice", func(t *testing.T) {
+		err := retry.On(ctx, retry.Twice, func(ctx context.Context, attempt int) error {
+			err := c.DoThing(ctx, &DoThingRequest{}, &resp)
+			if err != nil {
+				count++
+				return err
+			}
+			return nil
+		})
+		require.Error(t, err)
+		require.Equal(t, 2, count)
 	})
 
-	// The `retry.UntilSuccess` policy will retry on retryable errors until success, using the default back off policy.
-	_ = retry.On(ctx, retry.UntilSuccess, func(ctx context.Context, attempt int) error {
-		return c.DoThing(ctx, &DoThingRequest{}, &resp)
+	t.Run("UntilSuccess", func(t *testing.T) {
+		c.Attempts = 5
+		count = 0
+
+		// The `retry.UntilSuccess` policy will retry on retryable errors until success, using the default
+		// back off policy.
+		_ = retry.On(ctx, retry.UntilSuccess, func(ctx context.Context, attempt int) error {
+			err := c.DoThing(ctx, &DoThingRequest{}, &resp)
+			if err != nil {
+				count++
+				return err
+			}
+			return nil
+		})
+		require.Equal(t, 5, count)
 	})
 
-	// The `retry.OnConflict` policy will retry only on 409 conflict or until success, using the default back off policy.
-	_ = retry.On(ctx, retry.OnConflict, func(ctx context.Context, attempt int) error {
-		return c.DoThing(ctx, &DoThingRequest{}, &resp)
+	t.Run("OnRetryable", func(t *testing.T) {
+		c.Err = &testError{code: duh.CodeRetryRequest}
+		c.Attempts = 5
+		count = 0
+
+		// The `retry.OnRetryable` policy will retry only on 454 retry request or until success, using
+		// the default back off policy.
+		_ = retry.On(ctx, retry.OnRetryable, func(ctx context.Context, attempt int) error {
+			err := c.DoThing(ctx, &DoThingRequest{}, &resp)
+			if err != nil {
+				count++
+				return err
+			}
+			return nil
+		})
+		require.Equal(t, 5, count)
 	})
 
-	customPolicy := retry.Policy{
-		Interval: retry.BackOff{
-			Min:    time.Millisecond,
-			Max:    time.Millisecond * 100,
-			Factor: 2,
-		},
-		OnCodes:  []int64{409, 429, 502, 503, 504},
-		Attempts: 5,
-	}
+	t.Run("CustomPolicyBackoff", func(t *testing.T) {
+		customPolicy := retry.Policy{
+			OnCodes: []int{duh.CodeConflict, duh.CodeTooManyRequests, 502, 503, 504},
+			Interval: retry.BackOff{
+				Min:    time.Millisecond,
+				Max:    time.Millisecond * 100,
+				Factor: 2,
+			},
+			Attempts: 5,
+		}
 
-	// Users can define a custom retry policy to suit their needs
-	_ = retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
-		return c.DoThing(ctx, &DoThingRequest{}, &resp)
+		c.Err = &testError{code: duh.CodeConflict}
+		c.Attempts = 10
+		count = 0
+
+		// Users can define a custom retry policy to suit their needs
+		err := retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
+			err := c.DoThing(ctx, &DoThingRequest{}, &resp)
+			if err != nil {
+				count++
+				return err
+			}
+			return nil
+		})
+
+		require.Error(t, err)
+		require.Equal(t, 5, count)
 	})
 
-	customPolicy = retry.Policy{
-		// No Backoff, just sleep in-between retries
-		Interval: retry.Sleep(time.Second),
-		OnCodes:  []int64{409, 429, 502, 503, 504},
-		// Attempts of 0 indicate infinite retries
-		Attempts: 0,
-	}
+	t.Run("RetryUntilCancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		customPolicy := retry.Policy{
+			// No Backoff, just sleep in-between retries
+			Interval: retry.Sleep(100 * time.Millisecond),
+			// Attempts of 0 indicate infinite retries
+			Attempts: 0,
+		}
 
-	_ = retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
-		return c.DoThing(ctx, &DoThingRequest{}, &resp)
+		c.Err = errors.New("error")
+		c.Attempts = math.MaxInt
+		count = 0
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			err := retry.On(ctx, customPolicy, func(ctx context.Context, attempt int) error {
+				return c.DoThing(ctx, &DoThingRequest{}, &resp)
+			})
+			require.Error(t, err)
+			assert.Equal(t, context.Canceled, err)
+			wg.Done()
+		}()
+		// Cancelling
+		time.Sleep(2 * time.Second)
+		cancel()
+		wg.Wait()
 	})
+}
+
+type testError struct {
+	code int
+}
+
+func (t testError) ProtoMessage() proto.Message { return nil }
+func (t testError) Details() map[string]string  { return nil }
+func (t testError) Error() string               { return "" }
+func (t testError) Message() string             { return "" }
+func (t testError) Code() int {
+	return t.code
 }
