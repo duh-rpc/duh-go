@@ -26,8 +26,8 @@ lint: $(LINT) ## Run Go linter
 tidy:
 	go mod tidy && git diff --exit-code
 
-.PHONY: validate
-validate: tidy lint test
+.PHONY: ci
+ci: tidy lint test
 	@echo
 	@echo "\033[32mEVERYTHING PASSED!\033[0m"
 
