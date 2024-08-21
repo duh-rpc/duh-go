@@ -40,7 +40,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleTestErrors(w http.ResponseWriter, r *http.Request) {
 	var req ErrorsRequest
 
-	if err := duh.ReadRequest(r, &req); err != nil {
+	if err := duh.ReadRequest(r, &req, 0); err != nil {
 		duh.ReplyError(w, r, err)
 		return
 	}

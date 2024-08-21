@@ -54,7 +54,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleSayHello(w http.ResponseWriter, r *http.Request) {
 	// TODO: Verify the authenticated user can access this endpoint
 	var req SayHelloRequest
-	if err := duh.ReadRequest(r, &req); err != nil {
+	if err := duh.ReadRequest(r, &req, 5*duh.MegaByte); err != nil {
 		duh.ReplyError(w, r, err)
 		return
 	}
@@ -68,7 +68,7 @@ func (h *Handler) handleSayHello(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleRenderPixel(w http.ResponseWriter, r *http.Request) {
 	var req RenderPixelRequest
-	if err := duh.ReadRequest(r, &req); err != nil {
+	if err := duh.ReadRequest(r, &req, 5*duh.MegaByte); err != nil {
 		duh.ReplyError(w, r, err)
 		return
 	}

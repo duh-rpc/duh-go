@@ -40,12 +40,21 @@ var (
 // ReadRequest reads the given http.Request body []byte into the given proto.Message.
 // The provided message must be mutable (e.g., a non-nil pointer to a message).
 // It also handles content negotiation via the 'Content-Type' header provided in the http.Request headers
-func ReadRequest(r *http.Request, m proto.Message) error {
-	defer func() { _ = r.Body.Close() }()
-
+func ReadRequest(r *http.Request, m proto.Message, limit int64) error {
 	var b bytes.Buffer
-	_, err := io.Copy(&b, r.Body)
+	body := r.Body
+	defer func() { _ = body.Close() }()
+
+	if limit > 0 {
+		body = NewLimitReader(body, limit)
+	}
+
+	_, err := io.Copy(&b, body)
 	if err != nil {
+		var e Error
+		if errors.As(err, &e) {
+			return NewServiceError(e.Code(), fmt.Sprintf("request body %s", e.Message()), nil, nil)
+		}
 		return NewServiceError(CodeTransportError, "", err, nil)
 	}
 
