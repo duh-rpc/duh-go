@@ -10,6 +10,7 @@ import (
 const (
 	// International System of Units (SI) Definitions
 
+	Bytes    = 1
 	Kibibyte = 1024
 	Kilobyte = 1000
 	MegaByte = Kilobyte * 1000
