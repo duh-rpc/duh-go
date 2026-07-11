@@ -223,15 +223,33 @@ func HandleBytes(w http.ResponseWriter, r *http.Request, handler func(*http.Requ
 	flusher, _ := w.(http.Flusher)
 	bw := &bytesWriter{w: w, flusher: flusher}
 	if err := handler(r, bw); err != nil && !bw.wrote {
-		ReplyError(w, r, err)
+		ReplyContentError(w, r, err)
 	}
 }
 
-// ReplyContentError writes an error Reply for content endpoint errors.
-// It delegates to ReplyError so the Accept header is respected and the version header is set.
-// This function exists as a named entry point for content endpoint handlers, parallel to
-// ReplyError for structured handlers, allowing future content-specific behavior.
-func ReplyContentError(w http.ResponseWriter, r *http.Request, err error) {
+// ReplyContentError writes a pre-body error Reply for a content endpoint (see HandleBytes).
+// A content endpoint's success Accept — application/octet-stream, text/html, image/png, … —
+// is not a Reply-capable media type, but the spec requires the error to still be a decodable
+// Reply (docs/spec.md §Content Negotiation, docs/streaming.md §Unstructured Streams). So when
+// Accept is not json/protobuf, it is rewritten to a Reply-capable encoding — protobuf when the
+// client sent a protobuf request Content-Type, otherwise JSON — rather than letting Reply 455
+// on the success Accept and mask the real error. A Reply-capable Accept passes through unchanged
+// and negotiates normally.
+//
+// ReplyContentError is a var so a service with a legitimate custom error representation (e.g. an
+// HTML error page on a browser-facing content endpoint) can override it without patching the
+// framework.
+var ReplyContentError = func(w http.ResponseWriter, r *http.Request, err error) {
+	switch normalizeMediaType(r.Header.Get("Accept")) {
+	case "", "*/*", "application/*", ContentTypeJSON, ContentTypeProtoBuf:
+		// Already Reply-capable; let Reply negotiate it as-is.
+	default:
+		if normalizeMediaType(r.Header.Get("Content-Type")) == ContentTypeProtoBuf {
+			r.Header.Set("Accept", ContentTypeProtoBuf)
+		} else {
+			r.Header.Set("Accept", ContentTypeJSON)
+		}
+	}
 	ReplyError(w, r, err)
 }
 
