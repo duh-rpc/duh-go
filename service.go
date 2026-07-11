@@ -227,30 +227,36 @@ func HandleBytes(w http.ResponseWriter, r *http.Request, handler func(*http.Requ
 	}
 }
 
-// ReplyContentError writes a pre-body error Reply for a content endpoint (see HandleBytes).
-// A content endpoint's success Accept — application/octet-stream, text/html, image/png, … —
-// is not a Reply-capable media type, but the spec requires the error to still be a decodable
-// Reply (docs/spec.md §Content Negotiation, docs/streaming.md §Unstructured Streams). So when
-// Accept is not json/protobuf, it is rewritten to a Reply-capable encoding — protobuf when the
-// client sent a protobuf request Content-Type, otherwise JSON — rather than letting Reply 455
-// on the success Accept and mask the real error. A Reply-capable Accept passes through unchanged
-// and negotiates normally.
-//
-// ReplyContentError is a var so a service with a legitimate custom error representation (e.g. an
-// HTML error page on a browser-facing content endpoint) can override it without patching the
-// framework.
-var ReplyContentError = func(w http.ResponseWriter, r *http.Request, err error) {
-	switch normalizeMediaType(r.Header.Get("Accept")) {
+// replyCapable reports whether a media type can carry a standard Reply — the set
+// Reply negotiates. Content endpoints use it to know when a success Accept
+// (octet-stream, text/html, image/*, …) must fall back to a Reply-capable encoding.
+func replyCapable(mimeType string) bool {
+	switch mimeType {
 	case "", "*/*", "application/*", ContentTypeJSON, ContentTypeProtoBuf:
-		// Already Reply-capable; let Reply negotiate it as-is.
+		return true
 	default:
-		if normalizeMediaType(r.Header.Get("Content-Type")) == ContentTypeProtoBuf {
-			r.Header.Set("Accept", ContentTypeProtoBuf)
-		} else {
-			r.Header.Set("Accept", ContentTypeJSON)
-		}
+		return false
 	}
-	ReplyError(w, r, err)
+}
+
+// ReplyContentError writes a content endpoint's pre-body error as a Reply. A content
+// endpoint's success Accept is not Reply-capable, so it is negotiated to a Reply-capable
+// encoding here rather than letting Reply 455 on it and mask the real error (spec
+// §Content Negotiation). It is a var so a service can substitute a custom error format.
+var ReplyContentError = func(w http.ResponseWriter, r *http.Request, err error) {
+	if replyCapable(normalizeMediaType(r.Header.Get("Accept"))) {
+		ReplyError(w, r, err)
+		return
+	}
+	// Prefer protobuf for a protobuf client, else the universal JSON fallback. Clone so
+	// the negotiation override is not visible to callers/middleware that still hold r.
+	accept := ContentTypeJSON
+	if normalizeMediaType(r.Header.Get("Content-Type")) == ContentTypeProtoBuf {
+		accept = ContentTypeProtoBuf
+	}
+	clone := r.Clone(r.Context())
+	clone.Header.Set("Accept", accept)
+	ReplyError(w, clone, err)
 }
 
 // setServiceHeaders sets the standard DUH service response headers so all

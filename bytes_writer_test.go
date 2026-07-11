@@ -24,7 +24,7 @@ import (
 	v1 "github.com/duh-rpc/duh.go/v2/proto/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	protojson "google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -226,6 +226,34 @@ func TestHandleBytesPreBodyErrorRespectsReplyCapableAccept(t *testing.T) {
 	var reply v1.Reply
 	require.NoError(t, protojson.Unmarshal(body, &reply))
 	assert.Equal(t, "400", reply.GetCode())
+}
+
+// Negotiating the error encoding must not mutate the caller's request: middleware
+// that reads r.Header after HandleBytes returns must still see the client's Accept.
+func TestHandleBytesPreBodyErrorDoesNotMutateRequest(t *testing.T) {
+	observed := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			return duh.NewServiceError(duh.CodeNotFound, "path not found", nil, nil)
+		})
+		// Outer middleware observes the request after the content handler returns.
+		observed <- r.Header.Get("Accept")
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "image/png")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	// The error still negotiated to a JSON Reply...
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, duh.ContentTypeJSON, resp.Header.Get("Content-Type"))
+	// ...but the client's original Accept survives on the request.
+	assert.Equal(t, "image/png", <-observed)
 }
 
 // A service may override ReplyContentError to produce a custom, non-JSON error
