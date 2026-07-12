@@ -26,26 +26,17 @@ type Page struct {
 	HasNextPage bool
 }
 
-// iteratorConfig holds configuration for the iterator.
-type iteratorConfig struct {
-	retryPolicy *retry.Policy
-}
-
-// IteratorOption configures an Iterator.
-type IteratorOption func(*iteratorConfig)
-
-// WithRetryPolicy configures the iterator to retry failed fetch calls using the given policy.
-func WithRetryPolicy(p retry.Policy) IteratorOption {
-	return func(c *iteratorConfig) {
-		c.retryPolicy = &p
-	}
+// IteratorConfig configures an Iterator. A nil *IteratorConfig uses defaults.
+type IteratorConfig struct {
+	// RetryPolicy retries failed fetch calls. Nil disables retries.
+	RetryPolicy *retry.Policy
 }
 
 // Iterator provides cursor-based pagination over any paginated endpoint.
 // It is NOT safe for concurrent use.
 type Iterator[T any] struct {
 	fetch  func(ctx context.Context, cursor string) ([]T, Page, error)
-	config iteratorConfig
+	config IteratorConfig
 	cursor string
 	err    error
 	done   bool
@@ -56,11 +47,11 @@ type Iterator[T any] struct {
 // the caller constructs the request with their own page size and parameters.
 func NewIterator[T any](
 	fetch func(ctx context.Context, cursor string) ([]T, Page, error),
-	opts ...IteratorOption,
+	conf *IteratorConfig,
 ) *Iterator[T] {
-	var cfg iteratorConfig
-	for _, opt := range opts {
-		opt(&cfg)
+	var cfg IteratorConfig
+	if conf != nil {
+		cfg = *conf
 	}
 	return &Iterator[T]{
 		fetch:  fetch,
@@ -79,8 +70,8 @@ func (it *Iterator[T]) Next(ctx context.Context, page *[]T) bool {
 	var pg Page
 	var err error
 
-	if it.config.retryPolicy != nil {
-		err = retry.On(ctx, *it.config.retryPolicy, func(ctx context.Context, _ int) error {
+	if it.config.RetryPolicy != nil {
+		err = retry.On(ctx, *it.config.RetryPolicy, func(ctx context.Context, _ int) error {
 			var fetchErr error
 			items, pg, fetchErr = it.fetch(ctx, it.cursor)
 			return fetchErr
