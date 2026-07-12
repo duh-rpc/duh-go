@@ -43,7 +43,7 @@ func TestIterator(t *testing.T) {
 				t.Fatalf("unexpected cursor: %s", cursor)
 				return nil, duh.Page{}, nil
 			}
-		})
+		}, nil)
 
 		var all []string
 		var page []string
@@ -61,7 +61,7 @@ func TestIterator(t *testing.T) {
 		// HasNextPage == false on first page, iterator stops
 		iter := duh.NewIterator(func(ctx context.Context, cursor string) ([]int, duh.Page, error) {
 			return []int{1, 2, 3}, duh.Page{EndCursor: "", HasNextPage: false}, nil
-		})
+		}, nil)
 
 		var page []int
 		require.True(t, iter.Next(context.Background(), &page))
@@ -76,7 +76,7 @@ func TestIterator(t *testing.T) {
 		// Fetch returns empty items with HasNextPage == false
 		iter := duh.NewIterator(func(ctx context.Context, cursor string) ([]string, duh.Page, error) {
 			return nil, duh.Page{HasNextPage: false}, nil
-		})
+		}, nil)
 
 		var page []string
 		// Next returns true because the fetch succeeded (even with empty items)
@@ -93,7 +93,7 @@ func TestIterator(t *testing.T) {
 		fetchErr := errors.New("connection refused")
 		iter := duh.NewIterator(func(ctx context.Context, cursor string) ([]string, duh.Page, error) {
 			return nil, duh.Page{}, fetchErr
-		})
+		}, nil)
 
 		var page []string
 		assert.False(t, iter.Next(context.Background(), &page))
@@ -109,10 +109,10 @@ func TestIterator(t *testing.T) {
 				return nil, duh.Page{}, errors.New("transient error")
 			}
 			return []string{"ok"}, duh.Page{HasNextPage: false}, nil
-		}, duh.WithRetryPolicy(retry.Policy{
+		}, &duh.IteratorConfig{RetryPolicy: &retry.Policy{
 			Interval: retry.Sleep(time.Millisecond),
 			Attempts: 5,
-		}))
+		}})
 
 		var page []string
 		require.True(t, iter.Next(context.Background(), &page))
@@ -125,10 +125,10 @@ func TestIterator(t *testing.T) {
 		// Fetch always fails, retry attempts exhausted
 		iter := duh.NewIterator(func(ctx context.Context, cursor string) ([]string, duh.Page, error) {
 			return nil, duh.Page{}, errors.New("persistent error")
-		}, duh.WithRetryPolicy(retry.Policy{
+		}, &duh.IteratorConfig{RetryPolicy: &retry.Policy{
 			Interval: retry.Sleep(time.Millisecond),
 			Attempts: 3,
-		}))
+		}})
 
 		var page []string
 		assert.False(t, iter.Next(context.Background(), &page))
@@ -147,7 +147,7 @@ func TestIterator(t *testing.T) {
 				return nil, duh.Page{}, ctx.Err()
 			}
 			return []string{"item"}, duh.Page{EndCursor: "next", HasNextPage: true}, nil
-		})
+		}, nil)
 
 		var page []string
 		// First call succeeds
@@ -175,7 +175,7 @@ func TestIterator(t *testing.T) {
 				t.Fatal("too many calls")
 				return nil, duh.Page{}, nil
 			}
-		})
+		}, nil)
 
 		var page []int
 		for iter.Next(context.Background(), &page) {
@@ -192,7 +192,7 @@ func TestIterator(t *testing.T) {
 		iter := duh.NewIterator(func(ctx context.Context, cursor string) ([]string, duh.Page, error) {
 			fetchCalls++
 			return nil, duh.Page{}, errors.New("error")
-		})
+		}, nil)
 
 		var page []string
 		assert.False(t, iter.Next(context.Background(), &page))

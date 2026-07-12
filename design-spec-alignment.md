@@ -157,9 +157,15 @@ type Page struct {
 
 type Iterator[T any] struct { /* ... */ }
 
+// IteratorConfig configures an Iterator. A nil *IteratorConfig uses defaults.
+type IteratorConfig struct {
+    // RetryPolicy retries failed fetch calls. Nil disables retries.
+    RetryPolicy *retry.Policy
+}
+
 func NewIterator[T any](
     fetch func(ctx context.Context, cursor string) ([]T, Page, error),
-    opts ...IteratorOption,
+    conf *IteratorConfig,
 ) *Iterator[T]
 
 func (it *Iterator[T]) Next(ctx context.Context, page *[]T) bool
@@ -171,8 +177,8 @@ func (it *Iterator[T]) Err() error
   their own page size and parameters.
 - `Next` populates the provided slice with the next page of results and returns
   true, or returns false when iteration is complete or an error occurs.
-- Retry is handled internally using the retry policy provided via options. The
-  context passed to `Next` governs both the RPC call and retry cancellation.
+- Retry is handled internally using the retry policy provided via `IteratorConfig`.
+  The context passed to `Next` governs both the RPC call and retry cancellation.
 - The `Page` metadata (cursors, has_next_page) is internal bookkeeping and is not
   exposed to the caller.
 
@@ -188,7 +194,7 @@ iter := duh.NewIterator(func(ctx context.Context, cursor string) ([]User, duh.Pa
         EndCursor:   resp.Pagination.EndCursor,
         HasNextPage: resp.Pagination.HasNextPage,
     }, err
-}, duh.WithRetryPolicy(retry.OnRetryable))
+}, &duh.IteratorConfig{RetryPolicy: &duh.OnRetryable})
 
 var page []User
 for iter.Next(ctx, &page) {
