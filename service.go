@@ -217,22 +217,50 @@ func (b *bytesWriter) Write(p []byte) (int, error) {
 // — if the handler returns an error before any bytes were written — sends a
 // standard error Reply. Once bytes have been written the 200 response is committed
 // and the error can only abort the stream. See docs/streaming.md.
+//
+// If the handler renders its own response before the first Write, it must return nil;
+// return a non-nil error only to get the standard Reply — never both, or two responses
+// are written.
 func HandleBytes(w http.ResponseWriter, r *http.Request, handler func(*http.Request, BytesWriter) error) {
 	w.Header().Set("Content-Type", ContentOctetStream)
 	setServiceHeaders(w)
 	flusher, _ := w.(http.Flusher)
 	bw := &bytesWriter{w: w, flusher: flusher}
 	if err := handler(r, bw); err != nil && !bw.wrote {
-		ReplyError(w, r, err)
+		ReplyContentError(w, r, err)
 	}
 }
 
-// ReplyContentError writes an error Reply for content endpoint errors.
-// It delegates to ReplyError so the Accept header is respected and the version header is set.
-// This function exists as a named entry point for content endpoint handlers, parallel to
-// ReplyError for structured handlers, allowing future content-specific behavior.
+// replyCapable reports whether a media type can carry a standard Reply — the set
+// Reply negotiates. Content endpoints use it to know when a success Accept
+// (octet-stream, text/html, image/*, …) must fall back to a Reply-capable encoding.
+func replyCapable(mimeType string) bool {
+	switch mimeType {
+	case "", "*/*", "application/*", ContentTypeJSON, ContentTypeProtoBuf:
+		return true
+	default:
+		return false
+	}
+}
+
+// ReplyContentError writes a content endpoint's pre-body error as a standard Reply.
+// The success Accept (octet-stream, image/*, …) can't carry a structured Reply, so the
+// error defaults to JSON — the spec's universal fallback; a client gets protobuf only by
+// negotiating it explicitly via Accept: application/protobuf. Request Content-Type never
+// influences error encoding (it describes the sent body, not the desired response).
+//
+// To emit a non-standard error (e.g. an HTML page), a HandleBytes handler writes its own
+// response to the ResponseWriter and returns nil instead of returning the error — see HandleBytes.
 func ReplyContentError(w http.ResponseWriter, r *http.Request, err error) {
-	ReplyError(w, r, err)
+	if replyCapable(normalizeMediaType(r.Header.Get("Accept"))) {
+		ReplyError(w, r, err) // explicit json/protobuf Accept negotiates normally
+		return
+	}
+	// Opaque success Accept → default to the universal JSON fallback. Clone so the
+	// negotiation override is not visible to callers/middleware that still hold r.
+	clone := r.Clone(r.Context())
+	clone.Header.Set("Accept", ContentTypeJSON)
+	ReplyError(w, clone, err)
 }
 
 // setServiceHeaders sets the standard DUH service response headers so all

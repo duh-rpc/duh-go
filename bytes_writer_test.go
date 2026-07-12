@@ -21,8 +21,11 @@ import (
 	"testing"
 
 	"github.com/duh-rpc/duh.go/v2"
+	v1 "github.com/duh-rpc/duh.go/v2/proto/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestHandleBytesStreamsBody(t *testing.T) {
@@ -117,6 +120,217 @@ func TestHandleBytesErrorBeforeFirstByte(t *testing.T) {
 	assert.Equal(t, duh.DUHVersion, resp.Header.Get(duh.HeaderDUHVersion))
 	assert.NotEqual(t, duh.ContentOctetStream, resp.Header.Get("Content-Type"))
 	assert.Contains(t, string(body), "bad input")
+}
+
+// A content endpoint's pre-body error must fall back to a JSON Reply when the
+// client's Accept is the endpoint's own (non-Reply-capable) success media type,
+// rather than masking the real status with a 455.
+func TestHandleBytesPreBodyErrorFallsBackToJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			return duh.NewServiceError(duh.CodeNotFound, "path not found", nil, nil)
+		})
+	}))
+	defer server.Close()
+
+	for _, test := range []struct {
+		name   string
+		accept string
+	}{
+		{name: "octet-stream", accept: duh.ContentOctetStream},
+		{name: "text/html", accept: "text/html"},
+		{name: "text/html with charset", accept: "text/html; charset=utf-8"},
+		{name: "image/png", accept: "image/png"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", test.accept)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			// The real 404 survives — no 455 masking it.
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			assert.Equal(t, duh.ContentTypeJSON, resp.Header.Get("Content-Type"))
+			assert.Equal(t, duh.DUHVersion, resp.Header.Get(duh.HeaderDUHVersion))
+
+			var reply v1.Reply
+			require.NoError(t, protojson.Unmarshal(body, &reply))
+			assert.Equal(t, "404", reply.GetCode())
+			assert.Equal(t, "path not found", reply.GetMessage())
+		})
+	}
+}
+
+// A client that explicitly sets Accept: application/protobuf gets a protobuf-encoded
+// error Reply, regardless of the request Content-Type.
+func TestHandleBytesPreBodyErrorExplicitProtobufAccept(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			return duh.NewServiceError(duh.CodeUnauthorized, "not allowed", nil, nil)
+		})
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", duh.ContentOctetStream)
+	req.Header.Set("Accept", duh.ContentTypeProtoBuf)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	assert.Equal(t, duh.ContentTypeProtoBuf, resp.Header.Get("Content-Type"))
+
+	var reply v1.Reply
+	require.NoError(t, proto.Unmarshal(body, &reply))
+	assert.Equal(t, "401", reply.GetCode())
+	assert.Equal(t, "not allowed", reply.GetMessage())
+}
+
+// The request Content-Type MUST NOT influence error encoding. A protobuf Content-Type
+// with a non-Reply-capable (or empty) Accept still yields a JSON error Reply.
+func TestHandleBytesPreBodyErrorContentTypeIgnored(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			return duh.NewServiceError(duh.CodeUnauthorized, "not allowed", nil, nil)
+		})
+	}))
+	defer server.Close()
+
+	for _, test := range []struct {
+		name   string
+		accept string
+	}{
+		{name: "octet-stream accept", accept: duh.ContentOctetStream},
+		{name: "empty accept", accept: ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", duh.ContentTypeProtoBuf)
+			if test.accept != "" {
+				req.Header.Set("Accept", test.accept)
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+			assert.Equal(t, duh.ContentTypeJSON, resp.Header.Get("Content-Type"))
+
+			var reply v1.Reply
+			require.NoError(t, protojson.Unmarshal(body, &reply))
+			assert.Equal(t, "401", reply.GetCode())
+			assert.Equal(t, "not allowed", reply.GetMessage())
+		})
+	}
+}
+
+// A Reply-capable Accept passes through unchanged: an explicit JSON Accept still
+// negotiates to JSON even when the request Content-Type is protobuf.
+func TestHandleBytesPreBodyErrorRespectsReplyCapableAccept(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			return duh.NewServiceError(duh.CodeBadRequest, "bad input", nil, nil)
+		})
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", duh.ContentTypeProtoBuf)
+	req.Header.Set("Accept", duh.ContentTypeJSON)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, duh.ContentTypeJSON, resp.Header.Get("Content-Type"))
+
+	var reply v1.Reply
+	require.NoError(t, protojson.Unmarshal(body, &reply))
+	assert.Equal(t, "400", reply.GetCode())
+}
+
+// Negotiating the error encoding must not mutate the caller's request: middleware
+// that reads r.Header after HandleBytes returns must still see the client's Accept.
+func TestHandleBytesPreBodyErrorDoesNotMutateRequest(t *testing.T) {
+	observed := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			return duh.NewServiceError(duh.CodeNotFound, "path not found", nil, nil)
+		})
+		// Outer middleware observes the request after the content handler returns.
+		observed <- r.Header.Get("Accept")
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "image/png")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	// The error still negotiated to a JSON Reply...
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, duh.ContentTypeJSON, resp.Header.Get("Content-Type"))
+	// ...but the client's original Accept survives on the request.
+	assert.Equal(t, "image/png", <-observed)
+}
+
+// A HandleBytes handler that wants a non-standard error representation (e.g. an HTML
+// error page) writes its own response to the ResponseWriter it holds in closure scope
+// and returns nil; HandleBytes must not overwrite it with a standard Reply.
+func TestHandleBytesHandlerRendersOwnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+			// Render a custom error straight to w so the handler owns the status, then
+			// return nil so HandleBytes leaves the response untouched. Writing through bw
+			// would commit 200; the raw ResponseWriter lets the handler set 404.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("<html><body>not found</body></html>"))
+			return nil
+		})
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", duh.ContentOctetStream)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+	assert.Equal(t, duh.DUHVersion, resp.Header.Get(duh.HeaderDUHVersion))
+	assert.Contains(t, string(body), "not found")
 }
 
 func TestHandleBytesErrorAfterFirstByteIsCommitted(t *testing.T) {
