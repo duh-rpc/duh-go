@@ -93,6 +93,8 @@ Accept header 'application/bson' is invalid format or unrecognized content type,
 
 > Server MUST ALWAYS support JSON, if no other content type can be negotiated, then the server will always respond with JSON.
 
+> The `455` above is reserved for a structured-endpoint **success** the client genuinely cannot accept. It MUST NOT be used for a content-endpoint error. A content endpoint's success `Accept` (e.g. `application/octet-stream`, `image/png`, `text/html`) cannot carry a structured Reply, so a **pre-body error** — one raised before any content bytes are written — is a standard Reply encoded by the JSON fallback rule: it defaults to `application/json` and MAY be `application/protobuf` only when the client explicitly sets `Accept: application/protobuf`. The request `Content-Type` MUST NOT influence error encoding — `Content-Type` describes the sent body, while `Accept` describes the desired response representation. See [Content Endpoints](#content-endpoints).
+
 The reason we simplify Content-Type handling here is so servers with high performance requirements or tight resource constraints can support the DUH-RPC spec without needing to support every edge case RFC for HTTP.
 
 ## Replies

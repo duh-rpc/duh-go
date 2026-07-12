@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HandleBytes pre-body errors — Guide</title>
+<style>
+  /* ── Design tokens — canonical source: docs/design.md ───────────────── */
+  :root {
+    --bg: #0d1117;          /* page canvas              (colors.background)    */
+    --panel: #161b22;       /* cards, callouts          (colors.surface)       */
+    --panel-2: #1c2230;     /* raised: table headers    (colors.surfaceRaised) */
+    --border: #30363d;      /* hairline borders         (colors.border)        */
+    --text: #e6edf3;        /* body text                (colors.onBackground)  */
+    --muted: #9da7b3;       /* supporting text          (colors.onBackgroundMuted) */
+    --accent: #58a6ff;      /* links, emphasis (blue)   (colors.primary)       */
+    --accent-2: #7ee787;    /* headings, CLI (green)    (colors.secondary)     */
+    --warn: #f0883e;        /* caution                  (colors.warning)       */
+    --danger: #ff7b72;      /* danger                   (colors.error)         */
+    --code-bg: #0b0f14;     /* code surface             (colors.codeSurface)   */
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  /* Single centred reading column — NO sidebar. */
+  .layout { max-width: 880px; margin: 0 auto; }
+  main { padding: 3rem 2rem 6rem; }
+  h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 .4rem; }
+  h2 { font-size: 1.5rem; margin: 3rem 0 1rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.18rem; margin: 2rem 0 .6rem; color: var(--accent-2); }
+  h4 { font-size: 1rem; margin: 1.4rem 0 .4rem; color: var(--text); }
+  p, li { color: var(--text); }
+  a { color: var(--accent); }
+  code {
+    font-family: var(--mono); font-size: .86em;
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 5px; padding: .1em .4em;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto;
+    font-size: .85rem; line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+  .lead {
+    font-size: 1.15rem; color: var(--muted);
+    border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1.5rem 0 2rem;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+  th, td { text-align: left; padding: .55rem .7rem; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: var(--text); font-weight: 600; }
+  tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+  /* Callouts — tip / warn / danger encode intent via left border + eyebrow colour */
+  .callout { border-radius: 8px; padding: .9rem 1.1rem; margin: 1.2rem 0; border: 1px solid var(--border); background: var(--panel); }
+  .callout.tip    { border-left: 4px solid var(--accent-2); }
+  .callout.warn   { border-left: 4px solid var(--warn); }
+  .callout.danger { border-left: 4px solid var(--danger); }
+  .callout .label { font-weight: 700; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: .3rem; }
+  .callout.tip .label    { color: var(--accent-2); }
+  .callout.warn .label   { color: var(--warn); }
+  .callout.danger .label { color: var(--danger); }
+  /* Pills / tags */
+  .pill { display: inline-block; font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; padding: .12rem .55rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); vertical-align: middle; }
+  /* Tinted pill variants — duplicate this pattern with your own accent + 55/12 alpha suffixes */
+  .pill.a { color: var(--accent);   border-color: #58a6ff55; background:#58a6ff12; }
+  .pill.b { color: var(--accent-2); border-color: #7ee78755; background:#7ee78712; }
+  .pill.c { color: #b48ead;         border-color: #b48ead55; background:#b48ead12; }
+  /* Numbered layer/step diagram */
+  .layers { margin: 1.5rem 0; }
+  .layer { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 8px; margin-bottom: .6rem; overflow: hidden; background: var(--panel); }
+  .layer .num { flex: 0 0 56px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; background: var(--panel-2); color: var(--accent); }
+  .layer .body { padding: .7rem 1rem; flex: 1; }
+  .layer .body .t { font-weight: 600; }
+  .layer .body .d { color: var(--muted); font-size: .9rem; }
+  .layer .owner { flex: 0 0 130px; display:flex; align-items:center; justify-content:center; font-size: .72rem; text-align:center; border-left: 1px solid var(--border); }
+  /* Card grid */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; background: var(--panel); }
+  .card h4 { margin-top: 0; }
+  .muted { color: var(--muted); }
+  .cmd { color: var(--accent-2); }   /* CLI/command text inside <pre> */
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 4rem; border-top: 1px solid var(--border); padding-top: 1.2rem; }
+  @media (max-width: 900px) {
+    main { padding: 2rem 1.2rem 4rem; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+  /* ── Explainer diagrams ─────────────────────────────────────────────── */
+  /* Flow: boxes joined by arrows. Add .vert for top-to-bottom. */
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 1.5rem 0; }
+  .flow.vert { flex-direction: column; align-items: flex-start; }
+  .flow .node {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    padding: .7rem 1rem; min-width: 120px; text-align: center;
+  }
+  .flow .node .t { font-weight: 600; font-size: .95rem; }
+  .flow .node .d { color: var(--muted); font-size: .82rem; }
+  .flow .node.surface { border-color: #58a6ff55; background: #58a6ff12; }  /* caller-facing */
+  .flow .node.inside  { border-color: var(--border); background: var(--panel-2); }  /* internal */
+  .flow .arrow { display: flex; align-items: center; justify-content: center; padding: 0 .7rem; color: var(--accent); font-size: 1.3rem; }
+  .flow.vert .arrow { padding: .35rem 0 .35rem 2.2rem; }
+  .flow .arrow .lbl { color: var(--muted); font-size: .72rem; margin-left: .35rem; }
+
+  /* Boundary: the surface (highlighted) wrapping the internals (dimmed). */
+  .boundary { border: 1px solid #58a6ff55; border-radius: 10px; background: #58a6ff0a; padding: 1rem; margin: 1.5rem 0; }
+  .boundary > .cap { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: .6rem; }
+  .boundary .inner { border: 1px dashed var(--border); border-radius: 8px; background: var(--panel); padding: .9rem; }
+  .boundary .inner > .cap { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: .5rem; }
+
+  /* SVG diagram wrapper (state machines, sequences) */
+  .diagram { width: 100%; margin: 1.5rem 0; }
+  .diagram text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text); }
+  .diagram .node-box { fill: var(--panel); stroke: var(--border); }
+  .diagram .node-box.surface { fill: #58a6ff12; stroke: #58a6ff88; }
+  .diagram .edge { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  .diagram .edge-lbl { fill: var(--muted); font-size: 12px; }
+  .diagram .muted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<div class="layout">
+<main>
+
+<h1>Errors from a <code>HandleBytes</code> content endpoint</h1>
+<p class="lead">
+  You serve raw content — a file, an image, an HTML page — through
+  <code>HandleBytes</code>. When your handler fails <em>before</em> it writes the first byte,
+  the client now gets your real HTTP status and a decodable error body. No more
+  <code>455</code> swallowing your <code>404</code>.
+</p>
+
+<p>
+  This is a behavior change for anyone writing content endpoints with
+  <code>duh.HandleBytes</code>. Nothing in your handler signature changes — you write the
+  same three-argument handler you always did. What changed is what the client receives when
+  that handler returns an error early. This guide is written for you, the handler author:
+  what you send, what your client gets back, and one new trick for custom error pages.
+</p>
+
+<!-- ============================================================= -->
+<h2 id="boundary">What you hand in, what the client gets back</h2>
+
+<div class="boundary">
+  <div class="cap">Your side — the handler you write</div>
+  <p class="muted">
+    Return <code>nil</code> and the bytes you wrote become a <code>200</code>.
+    Return an <code>error</code> before writing anything, and DUH turns it into a
+    standard <code>Reply</code> for the client.
+  </p>
+  <div class="inner">
+    <div class="cap">DUH's job (you don't call this)</div>
+    <p class="muted">
+      Pick an encoding the client's DUH client can actually decode, write the status
+      and the <code>Reply</code> body, set the service headers. This is the part that
+      changed.
+    </p>
+  </div>
+</div>
+
+<p>
+  A content endpoint's success responses use the content's own media type —
+  <code>application/octet-stream</code>, <code>image/png</code>, <code>text/html</code>.
+  That is what the client puts in its <code>Accept</code> header. But none of those media
+  types can carry a structured error <code>Reply</code>. So when your handler errors before
+  producing content, DUH has to answer in something the client can decode instead.
+</p>
+
+<div class="flow">
+  <div class="node surface"><div class="t">your handler</div><div class="d">return err</div></div>
+  <div class="arrow">→<span class="lbl">before 1st byte</span></div>
+  <div class="node inside"><div class="t">HandleBytes</div><div class="d">ReplyContentError</div></div>
+  <div class="arrow">→<span class="lbl">JSON by default</span></div>
+  <div class="node surface"><div class="t">client</div><div class="d">decodes v1.Reply</div></div>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="change">The change, in one before/after</h2>
+
+<p>
+  Say your handler serves images and the client requested
+  <code>Accept: image/png</code>. Your handler can't find the record, so it returns a
+  <code>404</code>.
+</p>
+
+<div class="grid2">
+  <div class="card"><h4>Before — the bug</h4>
+    <pre><code><span class="muted">// client: Accept: image/png</span>
+<span class="muted">// handler: return 404</span>
+
+HTTP/1.1 <span class="cmd">455</span> ...
+<span class="muted"># "image/png is not supported,</span>
+<span class="muted">#  only [json, protobuf]"</span>
+<span class="muted"># your 404 is gone.</span></code></pre></div>
+  <div class="card"><h4>After — the fix</h4>
+    <pre><code><span class="muted">// client: Accept: image/png</span>
+<span class="muted">// handler: return 404</span>
+
+HTTP/1.1 <span class="cmd">404</span> Not Found
+Content-Type: application/json
+
+{"code":"404","message":"..."}
+<span class="muted"># real status + decodable body.</span></code></pre></div>
+</div>
+
+<p>
+  Before, DUH tried to encode the error in the client's <code>Accept</code> media type,
+  failed (you can't put a <code>Reply</code> in a PNG), and returned <code>455 Unsupported
+  Media Type</code> — masking the <code>404</code> you actually returned. Now the pre-body
+  error falls back to JSON, which every DUH client links and can always decode. Your status
+  survives.
+</p>
+
+<div class="callout tip"><span class="label">Why JSON works everywhere</span>
+  The DUH client decodes an error by the <em>response's</em> <code>Content-Type</code>, and
+  it always links the JSON codec. So a JSON error body is universally decodable regardless of
+  what the client asked for. That is why JSON is the fallback.
+</div>
+
+<!-- ============================================================= -->
+<h2 id="rules">The rules you can rely on</h2>
+
+<p>Given a pre-body error (your handler returns non-nil before the first <code>Write</code>):</p>
+
+<table>
+  <thead><tr><th>Client sends</th><th>Client gets the error as</th></tr></thead>
+  <tbody>
+    <tr><td><code>Accept: application/octet-stream</code> / <code>image/png</code> / <code>text/html</code> / empty</td><td><span class="pill b">JSON</span> — the universal fallback</td></tr>
+    <tr><td><code>Accept: application/json</code></td><td><span class="pill b">JSON</span></td></tr>
+    <tr><td><code>Accept: application/protobuf</code></td><td><span class="pill a">Protobuf</span> — explicit opt-in</td></tr>
+    <tr><td>any <code>Content-Type</code> on the request</td><td><span class="muted">ignored — does not affect error encoding</span></td></tr>
+  </tbody>
+</table>
+
+<p>Two rules are worth committing to memory:</p>
+
+<h3>1. Protobuf only when the client explicitly asks for it</h3>
+<p>
+  The error is JSON unless the client sets <code>Accept: application/protobuf</code>. That's
+  the only way to get a protobuf error <code>Reply</code>.
+</p>
+
+<h3>2. The request <code>Content-Type</code> never decides the error encoding</h3>
+<p>
+  <code>Content-Type</code> describes the body the client <em>sent</em> you (e.g. the blob
+  it's uploading). <code>Accept</code> describes the response it wants. Only <code>Accept</code>
+  is consulted. If you relied on "I uploaded protobuf, so I'll get a protobuf error" — that
+  never was a sound assumption, and it's now explicitly gone.
+</p>
+
+<div class="callout warn"><span class="label">If you tracked the original ticket</span>
+  The first acceptance criterion — "request <code>Content-Type: protobuf</code> → protobuf
+  error" — was itself the bug. Error encoding is negotiated by <code>Accept</code> only.
+  <code>455</code> is now reserved for a <em>structured</em> endpoint receiving a success
+  <code>Accept</code> it genuinely cannot satisfy — never for a content-endpoint error.
+</div>
+
+<!-- ============================================================= -->
+<h2 id="custom">New: render your own error page</h2>
+
+<p>
+  Sometimes you don't want a JSON <code>Reply</code> at all — you want an HTML error page, or
+  a redirect, or some bespoke body. You can, because <code>HandleBytes</code> defers the
+  status line until your first write. The move: <strong>write your own response, then return
+  <code>nil</code></strong>. Returning <code>nil</code> tells <code>HandleBytes</code> you've
+  already answered, so it won't also send a <code>Reply</code>.
+</p>
+
+<pre><code>func(w http.ResponseWriter, r *http.Request) {
+    duh.HandleBytes(w, r, func(r *http.Request, bw duh.BytesWriter) error {
+        rec, err := store.Find(r.Context(), id)
+        if err != nil {
+            <span class="muted">// Render your own error straight to w and claim the status.</span>
+            w.Header().Set("Content-Type", "text/html; charset=utf-8")
+            w.WriteHeader(http.StatusNotFound)
+            _, _ = w.Write([]byte("&lt;html&gt;&lt;body&gt;not found&lt;/body&gt;&lt;/html&gt;"))
+            <span class="cmd">return nil</span>   <span class="muted">// nil == "I answered; don't send a Reply"</span>
+        }
+        _, err = bw.Write(rec.Bytes)
+        return err
+    })
+}</code></pre>
+
+<div class="callout danger"><span class="label">One response only</span>
+  Write your own response <em>or</em> return an error — never both. If you write a full
+  response and <em>also</em> return a non-nil error, two responses get written. The contract:
+  return <code>nil</code> when you've handled it yourself; return a non-nil error only to get
+  the standard <code>Reply</code>.
+</div>
+
+<div class="callout warn"><span class="label">Custom status needs the raw writer</span>
+  To set a status other than <code>200</code>, write to the <code>http.ResponseWriter</code>
+  (<code>w</code>) you already hold in the closure, as above. Writing through
+  <code>bw</code> (the <code>BytesWriter</code>) commits <code>200</code> on the first write —
+  that's the success path, not the error path.
+</div>
+
+<!-- ============================================================= -->
+<h2 id="whyremoved">Why there's no override hook anymore</h2>
+
+<p>
+  A previous iteration exposed a package-level <code>ReplyContentError</code> variable you
+  could reassign to customize error rendering globally. That's gone, replaced by the
+  return-<code>nil</code> pattern above. Two reasons, both about your safety:
+</p>
+
+<div class="grid2">
+  <div class="card"><h4>It was a data race</h4><p class="muted">
+    A mutable package <code>var</code> reassigned at startup and read on every request is a
+    race the detector flags. A plain function has no such hazard.
+  </p></div>
+  <div class="card"><h4>It leaked globally</h4><p class="muted">
+    Reassigning it changed error rendering for <em>every</em> content endpoint in the
+    process. Per-endpoint customization now lives in the one handler that wants it — where it
+    belongs.
+  </p></div>
+</div>
+
+<p>
+  <code>duh.ReplyContentError</code> still exists as a regular exported function you can call,
+  but it is no longer a variable and cannot be reassigned. If you need custom error output,
+  render it in your handler and return <code>nil</code>.
+</p>
+
+<!-- ============================================================= -->
+<h2 id="checklist">What to check in your handlers</h2>
+
+<div class="layers">
+  <div class="layer">
+    <div class="num">1</div>
+    <div class="body"><div class="t">Nothing to change for the common case</div><div class="d">Return an error before writing → the client now gets your real status as JSON. This is strictly better; no code change needed.</div></div>
+    <div class="owner"><span class="pill b">automatic</span></div>
+  </div>
+  <div class="layer">
+    <div class="num">2</div>
+    <div class="body"><div class="t">Stop relying on request Content-Type for error format</div><div class="d">If any client assumed an upload's Content-Type would shape the error, switch it to send Accept: application/protobuf instead.</div></div>
+    <div class="owner"><span class="pill a">action</span></div>
+  </div>
+  <div class="layer">
+    <div class="num">3</div>
+    <div class="body"><div class="t">Replace any ReplyContentError reassignment</div><div class="d">If you set duh.ReplyContentError = ..., move that logic into the handler: write your response, return nil.</div></div>
+    <div class="owner"><span class="pill a">action</span></div>
+  </div>
+</div>
+
+<footer>
+  Generated from the ENG-138 change on branch
+  <code>thrawn01/eng-138-duhgo-content-endpoint-handlebytes-pre-body-errors-must-fall</code>
+  (<code>service.go</code>, <code>bytes_writer_test.go</code>, <code>docs/spec.md</code>).
+  Styling per the html-explainer template.
+</footer>
+
+</main>
+</div>
+</body>
+</html>

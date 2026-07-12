@@ -217,6 +217,10 @@ func (b *bytesWriter) Write(p []byte) (int, error) {
 // — if the handler returns an error before any bytes were written — sends a
 // standard error Reply. Once bytes have been written the 200 response is committed
 // and the error can only abort the stream. See docs/streaming.md.
+//
+// If the handler renders its own response before the first Write, it must return nil;
+// return a non-nil error only to get the standard Reply — never both, or two responses
+// are written.
 func HandleBytes(w http.ResponseWriter, r *http.Request, handler func(*http.Request, BytesWriter) error) {
 	w.Header().Set("Content-Type", ContentOctetStream)
 	setServiceHeaders(w)
@@ -239,23 +243,23 @@ func replyCapable(mimeType string) bool {
 	}
 }
 
-// ReplyContentError writes a content endpoint's pre-body error as a Reply. A content
-// endpoint's success Accept is not Reply-capable, so it is negotiated to a Reply-capable
-// encoding here rather than letting Reply 455 on it and mask the real error (spec
-// §Content Negotiation). It is a var so a service can substitute a custom error format.
-var ReplyContentError = func(w http.ResponseWriter, r *http.Request, err error) {
+// ReplyContentError writes a content endpoint's pre-body error as a standard Reply.
+// The success Accept (octet-stream, image/*, …) can't carry a structured Reply, so the
+// error defaults to JSON — the spec's universal fallback; a client gets protobuf only by
+// negotiating it explicitly via Accept: application/protobuf. Request Content-Type never
+// influences error encoding (it describes the sent body, not the desired response).
+//
+// To emit a non-standard error (e.g. an HTML page), a HandleBytes handler writes its own
+// response to the ResponseWriter and returns nil instead of returning the error — see HandleBytes.
+func ReplyContentError(w http.ResponseWriter, r *http.Request, err error) {
 	if replyCapable(normalizeMediaType(r.Header.Get("Accept"))) {
-		ReplyError(w, r, err)
+		ReplyError(w, r, err) // explicit json/protobuf Accept negotiates normally
 		return
 	}
-	// Prefer protobuf for a protobuf client, else the universal JSON fallback. Clone so
-	// the negotiation override is not visible to callers/middleware that still hold r.
-	accept := ContentTypeJSON
-	if normalizeMediaType(r.Header.Get("Content-Type")) == ContentTypeProtoBuf {
-		accept = ContentTypeProtoBuf
-	}
+	// Opaque success Accept → default to the universal JSON fallback. Clone so the
+	// negotiation override is not visible to callers/middleware that still hold r.
 	clone := r.Clone(r.Context())
-	clone.Header.Set("Accept", accept)
+	clone.Header.Set("Accept", ContentTypeJSON)
 	ReplyError(w, clone, err)
 }
 
